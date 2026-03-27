@@ -59,3 +59,14 @@ coverage/
 # Misc
 *.bak
 *.tmp
+
+# Android
+android/.gradle/
+android/.idea/
+android/local.properties
+android/build/
+android/app/build/
+android/app/google-services.json
+android/*.iml
+android/.externalNativeBuild/
+android/.cxx/
