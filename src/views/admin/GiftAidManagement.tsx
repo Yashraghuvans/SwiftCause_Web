@@ -63,6 +63,8 @@ import { AdminSearchFilterHeader, AdminSearchFilterConfig } from "./components/A
 import { SortableTableHeader } from "./components/SortableTableHeader";
 import { useTableSort } from "../../shared/lib/hooks/useTableSort";
 import { formatCurrency } from "../../shared/lib/currencyFormatter";
+import { useGiftAid } from "../../shared/lib/hooks/useGiftAid";
+import { PaginationControls } from "../../shared/ui/PaginationControls";
 
 interface GiftAidManagementProps {
   onNavigate: (screen: Screen) => void;
@@ -119,9 +121,6 @@ export function GiftAidManagement({
   userSession,
   hasPermission,
 }: GiftAidManagementProps) {
-  const [giftAidDonations, setGiftAidDonations] = useState<GiftAidDeclaration[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [selectedDonation, setSelectedDonation] = useState<GiftAidDeclaration | null>(null);
@@ -131,25 +130,33 @@ export function GiftAidManagement({
   const [charitySubmittedReference, setCharitySubmittedReference] = useState("");
   const [unresolvedReconciliationCount, setUnresolvedReconciliationCount] = useState(0);
 
-  const getGiftAidSnapshot = useCallback(async (organizationId: string) => {
-    const giftAidRef = collection(db, "giftAidDeclarations");
-    const orderedQuery = query(
-      giftAidRef,
-      where("organizationId", "==", organizationId),
-      orderBy("donationDate", "desc")
-    );
-    const fallbackQuery = query(
-      giftAidRef,
-      where("organizationId", "==", organizationId)
-    );
+  const {
+    declarations: pagedDeclarations,
+    loading,
+    fetching,
+    error: hookError,
+    pageNumber,
+    canGoNext,
+    canGoPrev,
+    goNext,
+    goPrev,
+    pageSize,
+    refresh,
+  } = useGiftAid(userSession.user.organizationId, {
+    status: statusFilter !== 'all' ? statusFilter : undefined,
+  });
 
-    try {
-      return await getDocs(orderedQuery);
-    } catch (err: any) {
-      if (err?.code !== "failed-precondition") throw err;
-      return await getDocs(fallbackQuery);
-    }
-  }, []);
+  // Local error state for mutation errors (export, mark paid)
+  const [mutationError, setMutationError] = useState<string | null>(null);
+  const error = hookError ?? mutationError;
+
+  // Keep a local copy so mutations (export, mark paid) can update UI optimistically
+  const [localOverrides, setLocalOverrides] = useState<Record<string, Partial<GiftAidDeclaration>>>({});
+
+  const giftAidDonations: GiftAidDeclaration[] = pagedDeclarations.map(d => ({
+    ...d,
+    ...(localOverrides[d.id] ?? {}),
+  }));
 
   const getUnresolvedReconciliationCount = useCallback(async (organizationId: string) => {
     const issuesRef = collection(db, "giftAidReconciliationIssues");
@@ -162,57 +169,14 @@ export function GiftAidManagement({
     return snapshot.size;
   }, []);
 
-  // Fetch Gift Aid declarations from Firebase
+  // Fetch unresolved reconciliation count on mount
   useEffect(() => {
     const organizationId = userSession.user.organizationId;
-    if (!organizationId) {
-      setError("No organization ID found");
-      setLoading(false);
-      return;
-    }
-
-    const fetchGiftAidDeclarations = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-
-        const querySnapshot = await getGiftAidSnapshot(organizationId);
-        const declarations: GiftAidDeclaration[] = querySnapshot.docs
-          .map(mapGiftAidDeclaration)
-          .sort((a, b) => {
-            // Sort by donation date, newest first
-            const dateA = a.donationDate ? new Date(a.donationDate).getTime() : 0;
-            const dateB = b.donationDate ? new Date(b.donationDate).getTime() : 0;
-            return dateB - dateA;
-          });
-
-        setGiftAidDonations(declarations);
-        const unresolvedCount = await getUnresolvedReconciliationCount(organizationId);
-        setUnresolvedReconciliationCount(unresolvedCount);
-        setError(null);
-      } catch (err: any) {
-        console.error("Error fetching Gift Aid declarations:", err);
-        // Handle different types of errors gracefully
-        if (err.code === 'permission-denied') {
-          setError("Permission denied. Please check your access rights.");
-        } else if (err.code === 'failed-precondition') {
-          setError("Database index required. Please contact your administrator.");
-        } else if (err.code === 'not-found') {
-          // Collection doesn't exist yet, which is fine
-          setGiftAidDonations([]);
-          setError(null);
-        } else {
-          // For development, show a more helpful error message
-          console.log("Full error details:", err);
-          setError(`Failed to load Gift Aid declarations: ${err.message || 'Unknown error'}`);
-        }
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchGiftAidDeclarations();
-  }, [getGiftAidSnapshot, getUnresolvedReconciliationCount, userSession.user.organizationId]);
+    if (!organizationId) return;
+    getUnresolvedReconciliationCount(organizationId)
+      .then(setUnresolvedReconciliationCount)
+      .catch(console.error);
+  }, [getUnresolvedReconciliationCount, userSession.user.organizationId]);
 
   // Configuration for AdminSearchFilterHeader
   const searchFilterConfig: AdminSearchFilterConfig = {
@@ -239,16 +203,12 @@ export function GiftAidManagement({
     }
   };
 
-  // Filter donations first
+  // Client-side search on current page — status filter is server-side via useGiftAid
   const filteredDonationsData = giftAidDonations.filter((donation) => {
     const donorName = `${donation.donorFirstName} ${donation.donorSurname}`.trim();
-    const matchesSearch = 
+    return !searchTerm ||
       donorName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (donation.campaignTitle || "").toLowerCase().includes(searchTerm.toLowerCase());
-    
-    const matchesStatus = statusFilter === "all" || donation.operationalStatus === statusFilter;
-    
-    return matchesSearch && matchesStatus;
   }).map((donation) => ({
     ...donation,
     donationDateTs: donation.donationDate ? new Date(donation.donationDate).getTime() || 0 : 0,
@@ -293,12 +253,9 @@ export function GiftAidManagement({
     if (filteredDonations.length === 0) return;
 
     setIsExporting(true);
-    setError(null);
+    setMutationError(null);
 
-    // Use HMRC-compliant CSV generation
     const csvContent = generateGiftAidCSV(filteredDonations);
-    
-    // Create and download the CSV file
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     const url = URL.createObjectURL(blob);
@@ -319,22 +276,17 @@ export function GiftAidManagement({
           giftAidApi.markDeclarationExported(donation.id, exportBatchId, exportActorId)
         )
       );
-      setGiftAidDonations((prev) =>
-        prev.map((donation) =>
-          filteredDonations.some((d) => d.id === donation.id)
-            ? {
-                ...donation,
-                operationalStatus: "exported",
-                exportedAt: new Date().toISOString(),
-                exportBatchId,
-                exportActorId,
-              }
-            : donation
-        )
-      );
+      const exportedAt = new Date().toISOString();
+      setLocalOverrides(prev => {
+        const next = { ...prev };
+        filteredDonations.forEach(d => {
+          next[d.id] = { ...next[d.id], operationalStatus: 'exported', exportedAt, exportBatchId, exportActorId };
+        });
+        return next;
+      });
     } catch (exportError) {
       console.error("Failed to mark declarations as exported:", exportError);
-      setError("CSV downloaded, but failed to update export tracking on some declarations.");
+      setMutationError("CSV downloaded, but failed to update export tracking on some declarations.");
     } finally {
       setIsExporting(false);
     }
@@ -344,70 +296,32 @@ export function GiftAidManagement({
     if (!selectedDonation) return;
 
     setIsUpdatingPaid(true);
-    setError(null);
+    setMutationError(null);
     try {
       await giftAidApi.markDeclarationPaidConfirmed(
         selectedDonation.id,
         charitySubmittedReference.trim() || undefined
       );
       const paidConfirmedAt = new Date().toISOString();
-      setGiftAidDonations((prev) =>
-        prev.map((donation) =>
-          donation.id === selectedDonation.id
-            ? {
-                ...donation,
-                paidConfirmed: true,
-                paidConfirmedAt,
-                charitySubmittedReference: charitySubmittedReference.trim() || null,
-              }
-            : donation
-        )
-      );
-      setSelectedDonation((prev) =>
-        prev
-          ? {
-              ...prev,
-              paidConfirmed: true,
-              paidConfirmedAt,
-              charitySubmittedReference: charitySubmittedReference.trim() || null,
-            }
-          : prev
-      );
+      const override = {
+        paidConfirmed: true,
+        paidConfirmedAt,
+        charitySubmittedReference: charitySubmittedReference.trim() || null,
+      };
+      setLocalOverrides(prev => ({ ...prev, [selectedDonation.id]: { ...prev[selectedDonation.id], ...override } }));
+      setSelectedDonation(prev => prev ? { ...prev, ...override } : prev);
     } catch (markError) {
       console.error("Failed to mark declaration as paid confirmed:", markError);
-      setError("Failed to mark declaration as paid confirmed.");
+      setMutationError("Failed to mark declaration as paid confirmed.");
     } finally {
       setIsUpdatingPaid(false);
     }
   };
 
-  const handleRefresh = async () => {
-    const organizationId = userSession.user.organizationId;
-    if (!organizationId) return;
-
-    try {
-      setLoading(true);
-      setError(null);
-
-      const querySnapshot = await getGiftAidSnapshot(organizationId);
-      const declarations: GiftAidDeclaration[] = querySnapshot.docs
-        .map(mapGiftAidDeclaration)
-        .sort((a, b) => {
-          // Sort by donation date, newest first
-          const dateA = a.donationDate ? new Date(a.donationDate).getTime() : 0;
-          const dateB = b.donationDate ? new Date(b.donationDate).getTime() : 0;
-          return dateB - dateA;
-        });
-
-      setGiftAidDonations(declarations);
-      const unresolvedCount = await getUnresolvedReconciliationCount(organizationId);
-      setUnresolvedReconciliationCount(unresolvedCount);
-    } catch (err) {
-      console.error("Error refreshing Gift Aid declarations:", err);
-      setError("Failed to refresh Gift Aid declarations");
-    } finally {
-      setLoading(false);
-    }
+  const handleRefresh = () => {
+    setMutationError(null);
+    setLocalOverrides({});
+    refresh();
   };
 
   // Check permissions
@@ -725,6 +639,22 @@ export function GiftAidManagement({
               </Table>
           </CardContent>
         </Card>
+
+        {/* Pagination — desktop */}
+        {(filteredDonations.length > 0 || canGoPrev) && (
+          <div className="hidden md:block border border-gray-100 rounded-lg px-4 bg-white">
+            <PaginationControls
+              pageNumber={pageNumber}
+              pageSize={pageSize}
+              totalOnPage={filteredDonations.length}
+              canGoNext={canGoNext}
+              canGoPrev={canGoPrev}
+              onNext={goNext}
+              onPrev={goPrev}
+              loading={fetching}
+            />
+          </div>
+        )}
 
         {/* Donations Cards - Mobile */}
         <div className="md:hidden space-y-4">

@@ -15,6 +15,8 @@ import { Screen, User, UserRole, AdminSession, Permission } from '../../shared/t
 import { DEFAULT_USER_PERMISSIONS, PASSWORD_REQUIREMENTS } from '../../shared/config/constants';
 import { calculateUserStats } from '../../shared/lib/userManagementHelpers';
 import { useUsers } from '../../shared/lib/hooks/useUsers';
+import { useUsersPaginated } from '../../shared/lib/hooks/useUsersPaginated';
+import { PaginationControls } from '../../shared/ui/PaginationControls';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '../../shared/ui/dialog';
 import { Label } from '../../shared/ui/label';
 import { Checkbox } from '../../shared/ui/checkbox';
@@ -181,8 +183,24 @@ interface UserManagementProps {
 
 export function UserManagement({ onNavigate, onLogout, userSession, hasPermission }: UserManagementProps) {
     const { users, loading, error, updateUser, addUser, deleteUser } = useUsers(userSession.user.organizationId);
+
+    // Declare filters before the paginated hook so they can be passed as arguments
     const [searchTerm, setSearchTerm] = useState('');
     const [roleFilter, setRoleFilter] = useState('all');
+
+    const {
+        users: pagedUsers,
+        loading: pagedLoading,
+        fetching,
+        pageNumber,
+        canGoNext,
+        canGoPrev,
+        goNext,
+        goPrev,
+        pageSize,
+        refresh: refreshUsers,
+    } = useUsersPaginated(userSession.user.organizationId, { role: roleFilter === 'all' ? undefined : roleFilter });
+
     const [editingUser, setEditingUser] = useState<User | null>(null);
     const [createDialogOpen, setCreateDialogOpen] = useState(false);
     const [isCreatingUser, setIsCreatingUser] = useState(false);
@@ -289,14 +307,13 @@ export function UserManagement({ onNavigate, onLogout, userSession, hasPermissio
         }
     };
 
-    // Filter users first
-    const filteredUsersData = users.filter(user => {
+    // Client-side search on current page only (Firestore can't do CONTAINS)
+    const filteredUsersData = pagedUsers.filter(user => {
         const matchesSearch = !searchTerm || 
             user.username?.toLowerCase().includes(searchTerm.toLowerCase());
-        const matchesRole = roleFilter === 'all' || user.role === roleFilter;
-        // Hide super_admin users from non-super-admin users
+        // Role filter is server-side via useUsersPaginated — this guards super_admin visibility only
         const canViewSuperAdmin = userSession.user.role === 'super_admin' || user.role !== 'super_admin';
-        return matchesSearch && matchesRole && canViewSuperAdmin;
+        return matchesSearch && canViewSuperAdmin;
     });
 
     // Use sorting hook
@@ -684,6 +701,21 @@ export function UserManagement({ onNavigate, onLogout, userSession, hasPermissio
                                 </Table>
                             </div>
                         </>
+                    )}
+                    {/* Pagination */}
+                    {(filteredUsers.length > 0 || canGoPrev) && (
+                        <div className="border-t border-gray-100 px-4">
+                            <PaginationControls
+                                pageNumber={pageNumber}
+                                pageSize={pageSize}
+                                totalOnPage={filteredUsers.length}
+                                canGoNext={canGoNext}
+                                canGoPrev={canGoPrev}
+                                onNext={goNext}
+                                onPrev={goPrev}
+                                loading={fetching}
+                            />
+                        </div>
                     )}
                 </CardContent>
             </Card>
