@@ -54,7 +54,20 @@ export const DonorActivityHeatmap: React.FC<DonorActivityHeatmapProps> = ({
               <Skeleton className="h-6 w-48 mb-2" />
               <Skeleton className="h-4 w-64" />
             </div>
-            <Skeleton className="h-40 w-full rounded-lg" />
+            <div className="h-40 w-full rounded-lg overflow-hidden border border-slate-100 bg-slate-50/80 p-1">
+              <div className="grid h-full grid-rows-7 gap-0.5">
+                {Array.from({ length: 7 }).map((_, row) => (
+                  <div key={row} className="grid grid-cols-8 gap-0.5 min-h-0">
+                    {Array.from({ length: 8 }).map((_, col) => (
+                      <Skeleton
+                        key={`${row}-${col}`}
+                        className="h-full min-h-[6px] w-full rounded-[1px]"
+                      />
+                    ))}
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         </CardContent>
       </Card>
