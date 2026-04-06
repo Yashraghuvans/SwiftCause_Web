@@ -130,6 +130,7 @@ const createGiftAidDeclarationIfNeeded = async ({
   const now = new Date().toISOString();
   const declarationId =
     toStringOrNull(metadata.giftAidDeclarationId) || toStringOrNull(metadata.declarationId);
+  const donorTitle = toStringOrNull(metadata.giftAidTitle);
 
   if (declarationId) {
     const declarationRef = admin.firestore().collection('giftAidDeclarations').doc(declarationId);
@@ -164,6 +165,7 @@ const createGiftAidDeclarationIfNeeded = async ({
         () =>
           declarationRef.set(
             {
+              ...(donorTitle ? { donorTitle } : {}),
               donationId,
               donationAmount: paymentIntent.amount,
               giftAidAmount: Math.round(paymentIntent.amount * 0.25),
@@ -237,6 +239,7 @@ const createGiftAidDeclarationIfNeeded = async ({
   const giftAidData = {
     id: donationId,
     donationId,
+    donorTitle: donorTitle || '',
     donorFirstName: donorFirstName || fallbackFirstName,
     donorSurname: donorSurname || fallbackSurname,
     donorHouseNumber: toStringOrNull(metadata.giftAidHouseNumber) || '',

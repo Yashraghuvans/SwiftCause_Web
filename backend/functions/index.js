@@ -29,6 +29,7 @@ const {
   createPaymentIntent,
   createExpressDashboardLink,
 } = require('./handlers/payments');
+const { exportGiftAidDeclarations, downloadGiftAidExportBatchFile } = require('./handlers/giftAid');
 const {
   createRecurringSubscription,
   cancelRecurringSubscription,
@@ -39,7 +40,6 @@ const { verifySignupRecaptcha } = require('./handlers/signup');
 const { kioskLogin } = require('./handlers/kiosk');
 const { completeEmailVerification } = require('./handlers/verification');
 const { logAuthEvent } = require('./handlers/auth');
-const { generateMagicLinkToken, determinePurpose } = require('./entities/magicLink');
 
 // Crypto for token hashing
 const crypto = require('crypto');
@@ -115,6 +115,8 @@ exports.createExpressDashboardLink = functions.https.onRequest(
   { secrets: [stripeSecretKey] },
   createExpressDashboardLink,
 );
+exports.exportGiftAidDeclarations = functions.https.onRequest(exportGiftAidDeclarations);
+exports.downloadGiftAidExportBatchFile = functions.https.onRequest(downloadGiftAidExportBatchFile);
 exports.createRecurringSubscription = functions.https.onRequest(
   { secrets: [stripeSecretKey] },
   createRecurringSubscription,

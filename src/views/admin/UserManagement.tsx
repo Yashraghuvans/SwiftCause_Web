@@ -38,7 +38,7 @@ const allPermissions: Permission[] = [
     'create_user', 'edit_user', 'delete_user',
     'view_campaigns', 'create_campaign', 'edit_campaign', 'delete_campaign',
     'view_kiosks', 'create_kiosk', 'edit_kiosk', 'delete_kiosk', 'assign_campaigns',
-    'view_donations', 'export_donations', 'view_users'
+    'view_donations', 'export_donations', 'export_giftaid', 'download_giftaid_exports', 'view_users'
 ];
 
 const canAssignRole = (actorRole: UserRole, targetRole: UserRole): boolean => {
@@ -143,7 +143,7 @@ const groupPermissionsByCategory = (permissions: Permission[]) => {
       categories['Campaigns'].push(permission);
     } else if (permission.includes('kiosk')) {
       categories['Kiosks'].push(permission);
-    } else if (permission.includes('donation')) {
+    } else if (permission.includes('donation') || permission.includes('giftaid')) {
       categories['Donations'].push(permission);
     } else {
       categories['System'].push(permission);
@@ -1329,7 +1329,7 @@ function CreateUserDialog({ open, onOpenChange, newUser, onUserChange, onCreateU
 
                                 {/* Donation Permissions */}
                                 {(() => {
-                                    const donationPerms = allPermissions.filter(p => p.includes('donation'));
+                                    const donationPerms = allPermissions.filter((p) => p.includes('donation') || p.includes('giftaid'));
                                     if (donationPerms.length === 0) return null;
                                     return (
                                         <div>
@@ -1699,7 +1699,7 @@ function EditUserDialog({ user, onUpdate, onClose, userSession }: { user: User, 
 
                                 {/* Donation Permissions */}
                                 {(() => {
-                                    const donationPerms = allPermissions.filter(p => p.includes('donation'));
+                                    const donationPerms = allPermissions.filter((p) => p.includes('donation') || p.includes('giftaid'));
                                     if (donationPerms.length === 0) return null;
                                     return (
                                         <div>

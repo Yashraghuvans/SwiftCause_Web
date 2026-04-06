@@ -1,0 +1,33 @@
+# Gradle
+.gradle/
+build/
+
+# Local config (machine-specific)
+local.properties
+
+# IDE (Android Studio / IntelliJ)
+.idea/
+*.iml
+
+# OS
+.DS_Store
+
+# NDK / CMake
+.externalNativeBuild/
+.cxx/
+
+# Keystore (IMPORTANT - never commit)
+*.jks
+*.keystore
+
+# Logs
+*.log
+
+# Generated files
+captures/
+
+# Kotlin/Java build
+out/
+
+# Gradle wrapper logs (optional)
+gradle-app.setting
