@@ -253,7 +253,7 @@ export function HomePage({ onLogin, onSignup, onNavigate }: HomePageProps) {
       </nav>
 
       {/* Hero Section */}
-      <main>
+      <main className="animate-fade-in">
         <section className="pt-32 pb-20 md:pt-48 md:pb-32 px-6 overflow-hidden">
           <div className="container mx-auto grid md:grid-cols-2 gap-12 items-center">
             <div className="space-y-8 max-w-2xl">

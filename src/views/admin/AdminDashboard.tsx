@@ -2365,10 +2365,10 @@ export function AdminDashboard({
           </CardHeader>
           <CardContent className="p-6">
             {loading ? (
-              <div className="space-y-3">
+              <div className="space-y-3 transition-opacity duration-300">
                 <Skeleton className="h-10 w-full" />
-                <Skeleton className="h-10 w-full" />
-                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-10 w-11/12 max-w-full" />
+                <Skeleton className="h-10 w-5/6 max-w-full" />
               </div>
             ) : stats.recurring.error ? (
               <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
@@ -2466,11 +2466,14 @@ export function AdminDashboard({
               >
                 {loading ? (
                   Array.from({ length: 3 }).map((_, i) => (
-                    <div key={i} className="flex items-start space-x-3 py-3 border-b border-gray-50 last:border-0">
+                    <div
+                      key={i}
+                      className="flex items-start space-x-3 py-3 border-b border-gray-50 last:border-0 transition-opacity duration-300"
+                    >
                       <Skeleton className="h-5 w-5 rounded-full flex-shrink-0 mt-0.5" />
                       <div className="flex-1 space-y-2 min-w-0">
-                        <Skeleton className="h-4 w-3/4" />
-                        <Skeleton className="h-3 w-1/2" />
+                        <Skeleton className={`h-4 ${i === 0 ? "w-[78%]" : i === 1 ? "w-[65%]" : "w-[82%]"}`} />
+                        <Skeleton className={`h-3 ${i === 0 ? "w-1/2" : i === 1 ? "w-2/5" : "w-3/5"}`} />
                       </div>
                     </div>
                   ))

@@ -99,8 +99,16 @@ export const DonationDistributionDonut: React.FC<DonationDistributionDonutProps>
             <Skeleton className="h-8 w-24" />
           </div>
         </CardHeader>
-        <CardContent className="p-6">
-          <Skeleton className="h-64 w-full rounded-full mx-auto" />
+        <CardContent className="p-6 flex flex-col items-center transition-opacity duration-300">
+          <Skeleton className="h-52 w-52 max-w-[min(100%,13rem)] rounded-full flex-shrink-0" />
+          <div className="mt-6 flex flex-wrap justify-center gap-x-4 gap-y-2 w-full">
+            {[0, 1, 2].map((i) => (
+              <div key={i} className="flex items-center gap-2">
+                <Skeleton className="h-3 w-3 rounded-full flex-shrink-0" />
+                <Skeleton className={`h-3 rounded ${i === 0 ? "w-24" : i === 1 ? "w-20" : "w-16"}`} />
+              </div>
+            ))}
+          </div>
         </CardContent>
       </Card>
     );

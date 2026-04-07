@@ -3,7 +3,7 @@
 import { useRouter } from 'next/navigation'
 import { HomePage } from '@/views/home/HomePage'
 import { useAuth } from '@/shared/lib/auth-provider'
-import { Loader } from '@/shared/ui/Loader'
+import { HomePageSkeleton } from '@/views/home/components/HomePageSkeleton'
 import { useEffect } from 'react'
 
 export default function Home() {
@@ -22,7 +22,7 @@ export default function Home() {
   }, [userRole, isLoadingAuth, router])
 
   if (isLoadingAuth) {
-    return <Loader />
+    return <HomePageSkeleton />
   }
 
   const handleNavigate = (screen: string) => {

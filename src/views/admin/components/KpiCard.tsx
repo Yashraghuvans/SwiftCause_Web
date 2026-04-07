@@ -31,8 +31,8 @@ export const KpiCard: React.FC<KpiCardProps> = ({
         <CardContent className="p-6">
           <div className="flex items-center justify-between">
             <div className="flex-1">
-              <Skeleton className="h-3 w-20 mb-3" />
-              <Skeleton className="h-7 w-16" />
+              <Skeleton className="h-3 w-28 mb-3" />
+              <Skeleton className="h-7 w-24 max-w-[90%]" />
             </div>
             <Skeleton className="w-10 h-10 rounded-lg" />
           </div>

@@ -61,7 +61,18 @@ export const RevenueGrowthChart: React.FC<RevenueGrowthChartProps> = ({
           </div>
         </CardHeader>
         <CardContent className="p-6 pt-2">
-          <Skeleton className="h-64 w-full" />
+          <div
+            className="h-64 flex items-end justify-center gap-1.5 px-2 transition-opacity duration-300"
+            aria-hidden
+          >
+            {[72, 110, 88, 140, 96, 160, 78, 130, 102, 148, 85, 124].map((h, i) => (
+              <Skeleton
+                key={i}
+                className="min-w-0 flex-1 max-w-[10%] rounded-t-sm"
+                style={{ height: h }}
+              />
+            ))}
+          </div>
         </CardContent>
       </Card>
     );

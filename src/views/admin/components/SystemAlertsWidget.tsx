@@ -71,8 +71,19 @@ export function SystemAlertsWidget({ alerts, loading, onNavigate }: SystemAlerts
         </CardHeader>
         <CardContent className="p-6">
           <div className="space-y-3">
-            <Skeleton className="h-16 w-full" />
-            <Skeleton className="h-16 w-full" />
+            {[0, 1].map((i) => (
+              <div
+                key={i}
+                className="flex items-start gap-3 rounded-lg border border-slate-100 bg-slate-50/60 p-4 transition-opacity duration-300"
+              >
+                <Skeleton className="h-9 w-9 rounded-lg flex-shrink-0" />
+                <div className="min-w-0 flex-1 space-y-2">
+                  <Skeleton className={`h-4 ${i === 0 ? "w-3/4" : "w-2/3"}`} />
+                  <Skeleton className={`h-3 ${i === 0 ? "w-full" : "w-4/5"}`} />
+                  <Skeleton className="h-2.5 w-1/4" />
+                </div>
+              </div>
+            ))}
           </div>
         </CardContent>
       </Card>
