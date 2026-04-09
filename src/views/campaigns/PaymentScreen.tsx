@@ -39,7 +39,10 @@ export function PaymentScreen({
       }
     })();
 
+  // isGiftAid should only be true if donor has ACCEPTED Gift Aid
   const isGiftAid = donation.isGiftAid || false;
+  // giftAidEnabled indicates campaign supports Gift Aid (for magic link generation)
+  const giftAidEnabled = donation.giftAidEnabled || false;
   const giftAidAmount = isGiftAid ? donation.amount * 0.25 : 0;
   const totalImpact = donation.amount + giftAidAmount;
 
@@ -96,7 +99,8 @@ export function PaymentScreen({
       organizationId: campaign.organizationId,
       isRecurring: donation.isRecurring,
       recurringInterval: donation.recurringInterval,
-      isGiftAid: isGiftAid,
+      isGiftAid: isGiftAid, // Donor has accepted Gift Aid
+      giftAidEnabled: giftAidEnabled, // Campaign supports Gift Aid (for magic link)
       giftAidAccepted: donation.giftAidAccepted || false, // Include explicit Gift Aid acceptance status
       giftAidDeclarationId: donation.giftAidDeclarationId || giftAidDetails?.declarationId || null,
       kioskId: donation.kioskId || null,

@@ -10,7 +10,6 @@ interface GiftAidBoostPanelProps {
   currency: string;
   campaignTitle: string;
   onAccept: () => void;
-  onDecline: () => void;
 }
 
 export const GiftAidBoostPanel: React.FC<GiftAidBoostPanelProps> = ({
@@ -21,7 +20,6 @@ export const GiftAidBoostPanel: React.FC<GiftAidBoostPanelProps> = ({
   currency,
   campaignTitle,
   onAccept,
-  onDecline,
 }) => {
   const currentAmount = isCustomAmount ? parseFloat(customAmountValue) || 0 : amount;
   const giftAidAmount = currentAmount * 0.25;
@@ -121,7 +119,9 @@ export const GiftAidBoostPanel: React.FC<GiftAidBoostPanelProps> = ({
           <Sparkles className="w-3.5 h-3.5" />
           Donating to
         </div>
-        <p className="font-medium text-slate-900 text-[16px] sm:text-[18px] tracking-[-0.01em]">{campaignTitle}</p>
+        <p className="font-medium text-slate-900 text-[16px] sm:text-[18px] tracking-[-0.01em]">
+          {campaignTitle}
+        </p>
       </div>
 
       {/* UK Taxpayer Info - moved below donating to box */}
@@ -142,14 +142,6 @@ export const GiftAidBoostPanel: React.FC<GiftAidBoostPanelProps> = ({
           className="w-full h-12 sm:h-14 rounded-full font-semibold text-[15px] sm:text-[17px] text-white transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed bg-[#0E8F5A] hover:brightness-[1.02] active:brightness-[0.98] shadow-[0_12px_32px_rgba(15,23,42,0.08)] tracking-[0.01em]"
         >
           Yes, Boost My Donation
-        </button>
-
-        <button
-          onClick={onDecline}
-          disabled={!isValidAmount}
-          className="w-full h-10 sm:h-12 text-[#0E8F5A] hover:text-[#0C8050] font-medium text-[15px] sm:text-[17px] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          No, continue with {isValidAmount ? formatAmount(currentAmount) : formatAmount(0)}
         </button>
       </div>
 

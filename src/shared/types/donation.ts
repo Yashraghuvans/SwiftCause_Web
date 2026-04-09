@@ -51,6 +51,7 @@ export interface Donation {
   transactionId?: string;
   paymentStatus?: 'success' | 'pending' | 'failed' | string;
   isGiftAid?: boolean;
+  giftAidEnabled?: boolean; // Campaign supports Gift Aid (for magic link generation)
   giftAidAccepted?: boolean; // Explicit tracking of Gift Aid acceptance/decline
   giftAidDetails?: GiftAidDetails;
   giftAidDeclarationId?: string;

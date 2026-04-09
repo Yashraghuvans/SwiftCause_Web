@@ -1,0 +1,185 @@
+rules_version = '2';
+
+// 🔒 PRODUCTION FIRESTORE RULES
+// These rules are deployed to production and enforce strict security.
+// For local development, use firestore.emulator.rules instead.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ============================================
+    // MAGIC LINK COLLECTIONS (Secure)
+    // ============================================
+    
+    // Magic Link Tokens - SECURE (backend only, contains sensitive data)
+    match /magicLinkTokens/{tokenId} {
+      // No public access - only backend functions can read/write
+      allow read, write: if false;
+    }
+    
+    // Magic Link Ephemeral - PUBLIC (time-restricted, only contains plain token)
+    match /magicLinkEphemeral/{tokenId} {
+      // Allow reading only within 2 minutes of creation
+      allow read: if 
+        resource.data.expiresAt != null && 
+        request.time < resource.data.expiresAt;
+      
+      // Only backend functions can write
+      allow write: if false;
+    }
+    
+    // ============================================
+    // USER AUTHENTICATION
+    // ============================================
+    
+    // Helper function to check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Helper function to check if user is admin
+    function isAdmin() {
+      return isAuthenticated() && 
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'super_admin'];
+    }
+    
+    // Helper function to check if user owns the document
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    // ============================================
+    // USERS COLLECTION
+    // ============================================
+    
+    match /users/{userId} {
+      // Users can read their own profile
+      allow read: if isOwner(userId) || isAdmin();
+      
+      // Users can update their own profile (except role)
+      allow update: if isOwner(userId) && 
+                       !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role']);
+      
+      // Only admins can create/delete users
+      allow create, delete: if isAdmin();
+    }
+    
+    // ============================================
+    // CAMPAIGNS COLLECTION
+    // ============================================
+    
+    match /campaigns/{campaignId} {
+      // Anyone can read campaigns
+      allow read: if true;
+      
+      // Only admins can create/update/delete campaigns
+      allow create, update, delete: if isAdmin();
+    }
+    
+    // ============================================
+    // DONATIONS COLLECTION
+    // ============================================
+    
+    match /donations/{donationId} {
+      // Admins can read all donations
+      allow read: if isAdmin();
+      
+      // Only backend functions can write donations
+      allow write: if false;
+      
+      // Consent events subcollection
+      match /ConsentEvents/{eventId} {
+        allow read: if isAdmin();
+        allow write: if false;
+      }
+    }
+    
+    // ============================================
+    // GIFT AID DECLARATIONS
+    // ============================================
+    
+    match /giftAidDeclarations/{declarationId} {
+      // Anyone can read declarations (needed for magic link Gift Aid form auto-fill)
+      // Note: This allows reading declarations by email for form pre-fill
+      allow read: if true;
+      
+      // Allow creating new declarations (needed for Gift Aid form submission)
+      allow create: if true;
+      
+      // Allow updates (needed for setting document ID after creation)
+      // TODO: Add validation to restrict what fields can be updated
+      allow update: if true;
+      
+      // Only backend functions can delete declarations
+      allow delete: if false;
+    }
+    
+    // ============================================
+    // SUBSCRIPTIONS COLLECTION
+    // ============================================
+    
+    match /subscriptions/{subscriptionId} {
+      // Admins can read all subscriptions
+      allow read: if isAdmin();
+      
+      // Only backend functions can write subscriptions
+      allow write: if false;
+    }
+    
+    // ============================================
+    // ORGANIZATIONS COLLECTION
+    // ============================================
+    
+    match /organizations/{orgId} {
+      // Anyone can read organization info
+      allow read: if true;
+      
+      // Only admins can write
+      allow write: if isAdmin();
+    }
+    
+    // ============================================
+    // KIOSKS COLLECTION
+    // ============================================
+    
+    match /kiosks/{kioskId} {
+      // Admins can read all kiosks
+      allow read: if isAdmin();
+      
+      // Only admins can write kiosks
+      allow write: if isAdmin();
+    }
+    
+    // ============================================
+    // WEBHOOK EVENTS (Internal)
+    // ============================================
+    
+    match /webhookEvents/{eventId} {
+      // Only backend functions can access
+      allow read, write: if false;
+    }
+    
+    // ============================================
+    // GIFT AID RECONCILIATION ISSUES
+    // ============================================
+    
+    match /giftAidReconciliationIssues/{issueId} {
+      // Only admins can read
+      allow read: if isAdmin();
+      
+      // Only backend functions can write
+      allow write: if false;
+    }
+    
+    // ============================================
+    // DEFAULT DENY (Explicit)
+    // ============================================
+    
+    // Explicitly deny all other access by default
+    // This ensures new collections are secure by default
+    // Any collection not explicitly allowed above will be denied
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

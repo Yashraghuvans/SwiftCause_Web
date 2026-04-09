@@ -1,6 +1,10 @@
 {
   "firestore": {
-    "indexes": "firestore.indexes.json"
+    "indexes": "firestore.indexes.json",
+    "rules": "firestore.rules"
+  },
+  "storage": {
+    "rules": "storage.rules"
   },
   "functions": [
     {
@@ -17,7 +21,8 @@
     },
     "firestore": {
       "host": "127.0.0.1",
-      "port": 8080
+      "port": 8081,
+      "rules": "firestore.emulator.rules"
     },
     "storage": {
       "host": "127.0.0.1",

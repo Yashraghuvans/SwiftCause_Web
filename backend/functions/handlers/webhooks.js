@@ -6,6 +6,7 @@ const {
   verifyWebhookSignatureWithAnySecret,
 } = require('../services/stripe');
 const { createDonationDoc } = require('../entities/donation');
+const { generateMagicLinkToken, determinePurpose } = require('../entities/magicLink');
 const { updateSubscriptionStatus, getSubscriptionByStripeId } = require('../entities/subscription');
 const { claimWebhookEvent, markEventProcessed, markEventFailed } = require('../shared/firestore');
 const {
@@ -475,6 +476,56 @@ const handlePaymentCompletedStripeWebhook = async (req, res) => {
         campaignTitleSnapshot,
         organizationId,
       });
+
+      // Generate magic link token automatically (Issue #587)
+      // Token generated for all Gift Aid campaigns to enable post-donation opt-in
+      const magicLinkPurpose = determinePurpose(metadata);
+      if (magicLinkPurpose) {
+        try {
+          const tokenResult = await generateMagicLinkToken({
+            paymentIntentId: paymentIntent.id,
+            donationId: paymentIntent.id,
+            campaignId: resolvedCampaignId || null,
+            charityId: organizationId || null,
+            kioskId: toStringOrNull(metadata.kioskId) || null,
+            amount: paymentIntent.amount,
+            currency: paymentIntent.currency,
+            purpose: magicLinkPurpose,
+            donorEmail: resolvedDonorEmail,
+          });
+
+          if (tokenResult.alreadyExists) {
+            console.log('✅ [Magic Link] Token already exists (idempotent)', {
+              paymentIntentId: paymentIntent.id,
+              purpose: magicLinkPurpose,
+            });
+          } else if (tokenResult.skipped) {
+            console.log('⚠️ [Magic Link] Generation skipped', {
+              paymentIntentId: paymentIntent.id,
+              reason: tokenResult.reason,
+            });
+          } else {
+            console.log('✅ [Magic Link] Token generated successfully', {
+              paymentIntentId: paymentIntent.id,
+              donationId: paymentIntent.id,
+              purpose: magicLinkPurpose,
+              expiresAt: tokenResult.expiresAt?.toDate().toISOString(),
+            });
+          }
+        } catch (magicLinkError) {
+          // Don't fail the webhook if magic link generation fails
+          console.error('❌ [Magic Link] Generation failed (non-critical)', {
+            paymentIntentId: paymentIntent.id,
+            error: magicLinkError.message,
+          });
+        }
+      } else {
+        console.log('ℹ️ [Magic Link] Not needed for this donation', {
+          paymentIntentId: paymentIntent.id,
+          isGiftAid: metadata.isGiftAid,
+          isRecurring: metadata.isRecurring,
+        });
+      }
 
       await markEventProcessed(event.id, {
         paymentIntentId: paymentIntent.id,

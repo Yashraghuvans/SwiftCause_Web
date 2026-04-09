@@ -15,7 +15,12 @@
     "prepare": "husky",
     "test": "vitest",
     "test:run": "vitest run --coverage",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "emulator": "cd backend && firebase emulators:start",
+    "deploy:functions": "cd backend && firebase deploy --only functions",
+    "deploy:rules": "cd backend && firebase deploy --only firestore:rules",
+    "deploy:all": "cd backend && firebase deploy",
+    "verify:rules": "node scripts/verify-firestore-rules.js"
   },
   "dependencies": {
     "@radix-ui/react-accordion": "^1.2.12",

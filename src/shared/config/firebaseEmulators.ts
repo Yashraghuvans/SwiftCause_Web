@@ -10,7 +10,7 @@ export const FIREBASE_EMULATOR_CONFIG = {
   enabled: process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATORS === 'true',
   host: FIREBASE_EMULATOR_HOST,
   authPort: toPort(process.env.NEXT_PUBLIC_FIREBASE_AUTH_EMULATOR_PORT, 9099),
-  firestorePort: toPort(process.env.NEXT_PUBLIC_FIRESTORE_EMULATOR_PORT, 8080),
+  firestorePort: toPort(process.env.NEXT_PUBLIC_FIRESTORE_EMULATOR_PORT, 8081),
   storagePort: toPort(process.env.NEXT_PUBLIC_FIREBASE_STORAGE_EMULATOR_PORT, 9199),
   functionsPort: toPort(process.env.NEXT_PUBLIC_FIREBASE_FUNCTIONS_EMULATOR_PORT, 5001),
 } as const;

@@ -14,7 +14,6 @@ interface GiftAidPageProps {
   initialDonorName?: string;
   initialDonorEmail?: string;
   onAcceptGiftAid: (details: GiftAidDetails) => void;
-  onDeclineGiftAid: (amount: number) => void;
   onBack: () => void;
 }
 
@@ -26,7 +25,6 @@ export const GiftAidPage: React.FC<GiftAidPageProps> = ({
   initialDonorName = '',
   initialDonorEmail = '',
   onAcceptGiftAid,
-  onDeclineGiftAid,
   onBack,
 }) => {
   const [showDetails, setShowDetails] = useState(false);
@@ -45,10 +43,6 @@ export const GiftAidPage: React.FC<GiftAidPageProps> = ({
     setShowEmailGate(true);
   };
 
-  const handleDecline = () => {
-    onDeclineGiftAid(currentAmount);
-  };
-
   const handleDetailsSubmit = (details: GiftAidDetails) => {
     onAcceptGiftAid(details);
   };
@@ -57,7 +51,6 @@ export const GiftAidPage: React.FC<GiftAidPageProps> = ({
     setShowDetails(false);
     setShowEmailGate(true);
   };
-
   const handleEmailContinue = async () => {
     const normalizedEmail = donorEmail.trim().toLowerCase();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
@@ -149,7 +142,6 @@ export const GiftAidPage: React.FC<GiftAidPageProps> = ({
                   currency={currency}
                   campaignTitle={campaign.title}
                   onAccept={handleAcceptBoost}
-                  onDecline={handleDecline}
                 />
               </div>
             </div>

@@ -1,0 +1,51 @@
+rules_version = '2';
+
+                                                                        
+//   EMULATOR ONLY - DO NOT DEPLOY TO PRODUCTION                            
+//                                                                           
+//   This file contains RELAXED rules for local development and testing.    
+//   It allows open access to all collections for easy testing.             
+//                                                                           
+//   IMPORTANT: This file is ONLY used by Firebase Emulators.               
+//   Production deployments use firestore.rules instead.                    
+//                                                                           
+//   Configured in firebase.json:                                           
+//     "firestore": { "rules": "firestore.rules" }         ← Production     
+//     "emulators": { "firestore": { "rules": "..." } }    ← Emulator       
+
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ============================================
+    // MAGIC LINK COLLECTIONS (Same as production)
+    // ============================================
+    
+    // Magic Link Tokens - SECURE (backend only, contains sensitive data)
+    match /magicLinkTokens/{tokenId} {
+      // No public access - only backend functions can read/write
+      allow read, write: if false;
+    }
+    
+    // Magic Link Ephemeral - PUBLIC (time-restricted, only contains plain token)
+    match /magicLinkEphemeral/{tokenId} {
+      // Allow reading only within 2 minutes of creation
+      allow read: if 
+        resource.data.expiresAt != null && 
+        request.time < resource.data.expiresAt;
+      
+      // Only backend functions can write
+      allow write: if false;
+    }
+    
+    // ============================================
+    // EMULATOR TESTING - OPEN ACCESS
+    // ============================================
+    
+    // Allow all reads and writes for other collections (emulator testing)
+    // This makes local development easier without authentication friction
+    match /{document=**} {
+      allow read, write: if true;
+    }
+  }
+}

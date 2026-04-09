@@ -99,6 +99,34 @@ export function ResultScreen({
                   </p>
                 </div>
 
+                {/* Magic Link (if available) */}
+                {result.magicLinkToken && (
+                  <div className="mb-6 p-5 bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-2xl">
+                    <div className="text-center mb-3">
+                      <p className="text-sm font-semibold text-blue-900 mb-1">
+                        📱 Complete Gift Aid on Your Phone
+                      </p>
+                      <p className="text-xs text-blue-700">
+                        Click the link below to add Gift Aid and increase your donation by 25%
+                      </p>
+                    </div>
+                    <a
+                      href={`/link/${result.magicLinkToken}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="block w-full p-4 bg-white border-2 border-blue-300 rounded-xl text-center hover:bg-blue-50 hover:border-blue-400 transition-all group"
+                    >
+                      <p className="text-blue-600 font-medium group-hover:text-blue-700 break-all text-sm">
+                        {window.location.origin}/link/{result.magicLinkToken.substring(0, 20)}...
+                      </p>
+                      <p className="text-xs text-blue-500 mt-1">Click to open magic link</p>
+                    </a>
+                    <p className="text-xs text-gray-500 text-center mt-2">
+                      ⏱️ Link available for 2 minutes • Expires in 30 days after first use
+                    </p>
+                  </div>
+                )}
+
                 {/* Action Buttons */}
                 <div className="space-y-4">
                   {onEmailConfirmation && (

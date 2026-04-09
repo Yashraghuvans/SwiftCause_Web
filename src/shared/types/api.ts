@@ -6,6 +6,7 @@ export interface PaymentResult {
   customerId?: string;
   error?: string;
   campaignTitle?: string;
+  magicLinkToken?: string; // Plain token from ephemeral storage (2-minute window)
 }
 
 export interface ApiResponse<T> {
