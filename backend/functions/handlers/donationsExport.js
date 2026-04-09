@@ -1,0 +1,266 @@
+const admin = require('firebase-admin');
+const cors = require('../middleware/cors');
+const { verifyAuth } = require('../middleware/auth');
+
+const isSystemAdmin = (callerData) => {
+  const permissions = Array.isArray(callerData?.permissions) ? callerData.permissions : [];
+  return permissions.includes('system_admin');
+};
+
+const hasDonationExportPermission = (callerData) => {
+  const permissions = Array.isArray(callerData?.permissions) ? callerData.permissions : [];
+  return permissions.includes('export_donations') || permissions.includes('system_admin');
+};
+
+const getCallerProfile = async (uid) => {
+  const callerDoc = await admin.firestore().collection('users').doc(uid).get();
+  if (!callerDoc.exists) {
+    const error = new Error('Caller is not a valid user');
+    error.code = 403;
+    throw error;
+  }
+
+  return callerDoc.data() || {};
+};
+
+const ensureDonationExportAccess = async (auth, requestedOrganizationId) => {
+  const callerData = await getCallerProfile(auth.uid);
+  const callerOrganizationId =
+    typeof callerData.organizationId === 'string' ? callerData.organizationId.trim() : '';
+
+  if (!hasDonationExportPermission(callerData)) {
+    const error = new Error('You do not have permission to export donations');
+    error.code = 403;
+    throw error;
+  }
+
+  if (!requestedOrganizationId) {
+    const error = new Error('organizationId is required');
+    error.code = 400;
+    throw error;
+  }
+
+  if (!isSystemAdmin(callerData) && callerOrganizationId !== requestedOrganizationId) {
+    const error = new Error('You can only export donations for your organization');
+    error.code = 403;
+    throw error;
+  }
+
+  return callerData;
+};
+
+const parseDateOnly = (value) => {
+  if (!value || typeof value !== 'string') return null;
+  const [year, month, day] = value.split('-').map((part) => Number(part));
+  if (!year || !month || !day) return null;
+  return { year, month, day };
+};
+
+const buildUtcStart = (dateParts) => {
+  return new Date(Date.UTC(dateParts.year, dateParts.month - 1, dateParts.day, 0, 0, 0, 0));
+};
+
+const buildUtcEnd = (dateParts) => {
+  return new Date(Date.UTC(dateParts.year, dateParts.month - 1, dateParts.day, 23, 59, 59, 999));
+};
+
+const resolveDateRange = ({ range, startDate, endDate }) => {
+  const now = new Date();
+  const utcYear = now.getUTCFullYear();
+  const utcMonth = now.getUTCMonth();
+
+  if (range === 'current_month') {
+    const start = new Date(Date.UTC(utcYear, utcMonth, 1, 0, 0, 0, 0));
+    const end = new Date(Date.UTC(utcYear, utcMonth + 1, 0, 23, 59, 59, 999));
+    return { start, end };
+  }
+
+  if (range === 'past_month') {
+    const targetMonth = utcMonth - 1;
+    const year = targetMonth < 0 ? utcYear - 1 : utcYear;
+    const month = targetMonth < 0 ? 11 : targetMonth;
+    const start = new Date(Date.UTC(year, month, 1, 0, 0, 0, 0));
+    const end = new Date(Date.UTC(year, month + 1, 0, 23, 59, 59, 999));
+    return { start, end };
+  }
+
+  if (range === 'custom') {
+    const startParts = parseDateOnly(startDate);
+    const endParts = parseDateOnly(endDate);
+    if (!startParts || !endParts) {
+      const error = new Error('startDate and endDate are required for custom range');
+      error.code = 400;
+      throw error;
+    }
+    const start = buildUtcStart(startParts);
+    const end = buildUtcEnd(endParts);
+    if (end < start) {
+      const error = new Error('endDate must be on or after startDate');
+      error.code = 400;
+      throw error;
+    }
+    return { start, end };
+  }
+
+  const error = new Error('range must be current_month, past_month, or custom');
+  error.code = 400;
+  throw error;
+};
+
+const asDate = (value) => {
+  if (!value) return null;
+  if (typeof value.toDate === 'function') return value.toDate();
+  if (typeof value.seconds === 'number') return new Date(value.seconds * 1000);
+  if (value instanceof Date) return value;
+  if (typeof value === 'string') {
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+  return null;
+};
+
+const getEffectiveTimestamp = (donation) => {
+  return (
+    asDate(donation.paymentCompletedAt) || asDate(donation.timestamp) || asDate(donation.createdAt)
+  );
+};
+
+const isRecurringDonation = (donation) => {
+  if (donation.isRecurring) return true;
+  if (donation.subscriptionId) return true;
+  if (donation.recurringInterval) return true;
+  if (typeof donation.transactionId === 'string' && donation.transactionId.startsWith('sub_')) {
+    return true;
+  }
+  return false;
+};
+
+const getCampaignDisplayName = (donation) => {
+  const snapshotTitle = String(
+    donation.campaignTitleSnapshot || donation.campaignTitle || '',
+  ).trim();
+  return snapshotTitle || 'Deleted Campaign';
+};
+
+const escapeCsvValue = (value) => {
+  if (value === undefined || value === null) {
+    return '';
+  }
+
+  const stringValue = String(value);
+  if (
+    stringValue.includes('"') ||
+    stringValue.includes(',') ||
+    stringValue.includes('\n') ||
+    stringValue.includes('\r')
+  ) {
+    return `"${stringValue.replace(/"/g, '""')}"`;
+  }
+
+  return stringValue;
+};
+
+const buildCsv = (rows, headers) => {
+  return [headers, ...rows].map((row) => row.map(escapeCsvValue).join(',')).join('\n');
+};
+
+const buildExportRows = (donations) => {
+  return donations.map((donation) => {
+    const effectiveDate = getEffectiveTimestamp(donation);
+    const isoTimestamp = effectiveDate ? effectiveDate.toISOString() : '';
+    const transactionId =
+      donation.stripePaymentIntentId || donation.transactionId || donation.id || '';
+
+    return [
+      donation.donorName || 'Anonymous',
+      donation.donorEmail || '',
+      getCampaignDisplayName(donation),
+      donation.amount || 0,
+      donation.currency || '',
+      donation.paymentStatus || '',
+      donation.isGiftAid ? 'Yes' : 'No',
+      isRecurringDonation(donation) ? 'Yes' : 'No',
+      donation.recurringInterval || '',
+      donation.subscriptionId || '',
+      donation.invoiceId || '',
+      transactionId,
+      donation.platform || '',
+      isoTimestamp,
+    ];
+  });
+};
+
+const EXPORT_HEADERS = [
+  'donorName',
+  'donorEmail',
+  'campaign',
+  'amount',
+  'currency',
+  'paymentStatus',
+  'isGiftAid',
+  'isRecurring',
+  'recurringInterval',
+  'subscriptionId',
+  'invoiceId',
+  'transactionId',
+  'platform',
+  'timestamp',
+];
+
+const exportDonations = (req, res) => {
+  cors(req, res, async () => {
+    try {
+      if (req.method !== 'POST') {
+        return res.status(405).send({ error: 'Method not allowed' });
+      }
+
+      const auth = await verifyAuth(req);
+      const organizationId =
+        typeof req.body?.organizationId === 'string' ? req.body.organizationId.trim() : '';
+      await ensureDonationExportAccess(auth, organizationId);
+
+      const range = typeof req.body?.range === 'string' ? req.body.range : '';
+      const { start, end } = resolveDateRange({
+        range,
+        startDate: req.body?.startDate,
+        endDate: req.body?.endDate,
+      });
+
+      const snapshot = await admin
+        .firestore()
+        .collection('donations')
+        .where('organizationId', '==', organizationId)
+        .get();
+
+      const donations = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+
+      const filtered = donations.filter((donation) => {
+        const effectiveDate = getEffectiveTimestamp(donation);
+        if (!effectiveDate) return false;
+        return effectiveDate >= start && effectiveDate <= end;
+      });
+
+      const rows = buildExportRows(filtered);
+      const csvContent = buildCsv(rows, EXPORT_HEADERS);
+
+      const startToken = start.toISOString().slice(0, 10).replace(/-/g, '');
+      const endToken = end.toISOString().slice(0, 10).replace(/-/g, '');
+      const fileName = `donations-${range}-${startToken}-${endToken}.csv`;
+
+      res.set('Content-Type', 'text/csv; charset=utf-8');
+      res.set('Content-Disposition', `attachment; filename="${fileName}"`);
+      res.set('Cache-Control', 'private, no-store, max-age=0');
+      return res.status(200).send(csvContent);
+    } catch (error) {
+      console.error('Error exporting donations:', error);
+      const statusCode = Number.isInteger(error.code) ? error.code : 500;
+      return res.status(statusCode).send({
+        error: error.message || 'Failed to export donations',
+      });
+    }
+  });
+};
+
+module.exports = {
+  exportDonations,
+};
