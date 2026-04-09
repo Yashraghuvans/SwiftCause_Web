@@ -5,11 +5,13 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.swiftcause.data.models.*
 import com.example.swiftcause.data.repository.PaymentRepository
+import com.google.firebase.firestore.FirebaseFirestore
 import com.stripe.android.paymentsheet.PaymentSheetResult
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 
 /**
  * ViewModel for managing payment flow and state
@@ -30,6 +32,12 @@ class PaymentViewModel(
     private val _clientSecret = MutableStateFlow<String?>(null)
     val clientSecret: StateFlow<String?> = _clientSecret.asStateFlow()
 
+    // Magic link token for QR code
+    private val _magicLinkToken = MutableStateFlow<String?>(null)
+    val magicLinkToken: StateFlow<String?> = _magicLinkToken.asStateFlow()
+    
+    private val firestore = FirebaseFirestore.getInstance()
+
     /**
      * Creates a payment intent and prepares PaymentSheet
      */
@@ -42,7 +50,9 @@ class PaymentViewModel(
         donorName: String? = null,
         donorEmail: String? = null,
         isAnonymous: Boolean = false,
-        frequency: String? = null  // null = one-time, "month", "year" = recurring
+        frequency: String? = null,  // null = one-time, "month", "year" = recurring
+        isGiftAid: Boolean = false,  // Campaign has Gift Aid enabled
+        kioskId: String? = null
     ) {
         viewModelScope.launch {
             try {
@@ -55,6 +65,7 @@ class PaymentViewModel(
                 Log.d(TAG, "Is Recurring: ${frequency != null}")
                 Log.d(TAG, "Frequency: $frequency")
                 Log.d(TAG, "Is Anonymous: $isAnonymous")
+                Log.d(TAG, "Is Gift Aid: $isGiftAid")
 
                 // Create payment intent request
                 val request = CreatePaymentIntentRequest(
@@ -65,9 +76,12 @@ class PaymentViewModel(
                         campaignTitle = campaignTitle,
                         organizationId = organizationId,
                         platform = "android_kiosk",
+                        kioskId = kioskId,
                         donorName = donorName,
                         donorEmail = donorEmail,
-                        isAnonymous = isAnonymous
+                        isAnonymous = isAnonymous,
+                        isGiftAid = isGiftAid,
+                        recurringInterest = frequency != null
                     ),
                     frequency = frequency,
                     donor = if (!donorEmail.isNullOrBlank() && !donorName.isNullOrBlank()) {
@@ -155,6 +169,43 @@ class PaymentViewModel(
     fun resetPayment() {
         _paymentState.value = PaymentState.Idle
         _clientSecret.value = null
+        _magicLinkToken.value = null
+    }
+    
+    /**
+     * Fetches magic link token from Firestore ephemeral collection
+     * Token is only available for 2 minutes after payment completion
+     */
+    fun fetchMagicLinkToken(paymentIntentId: String) {
+        viewModelScope.launch {
+            try {
+                Log.d(TAG, "Fetching magic link token for: $paymentIntentId")
+                
+                val docRef = firestore.collection("magicLinkEphemeral").document(paymentIntentId)
+                val snapshot = docRef.get().await()
+                
+                if (snapshot.exists()) {
+                    val plainToken = snapshot.getString("plainToken")
+                    val expiresAt = snapshot.getTimestamp("expiresAt")
+                    
+                    // Check if token is still valid (not expired)
+                    val now = com.google.firebase.Timestamp.now()
+                    if (plainToken != null && expiresAt != null && now < expiresAt) {
+                        _magicLinkToken.value = plainToken
+                        Log.d(TAG, "Magic link token fetched successfully")
+                    } else {
+                        Log.w(TAG, "Magic link token expired or invalid")
+                        _magicLinkToken.value = null
+                    }
+                } else {
+                    Log.d(TAG, "No magic link token found (may not be generated for this donation)")
+                    _magicLinkToken.value = null
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to fetch magic link token", e)
+                _magicLinkToken.value = null
+            }
+        }
     }
 }
 

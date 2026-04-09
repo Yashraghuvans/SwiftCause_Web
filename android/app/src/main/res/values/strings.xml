@@ -43,4 +43,13 @@
     <string name="content_description_next_image">Show next image</string>
     <string name="content_description_previous_image">Show previous image</string>
     <string name="content_description_image_indicator">Image %1$d of %2$d</string>
+    
+    <!-- Magic Link / Thank You Screen -->
+    <string name="thank_you">Thank You!</string>
+    <string name="donation_successful">Your donation of %1$s to\n%2$s\nhas been successful</string>
+    <string name="magic_link_title">Complete Gift Aid Declaration</string>
+    <string name="magic_link_instructions">Scan this QR code with your phone to continue on your own device</string>
+    <string name="magic_link_expires">Link available for 2 minutes • Expires in 30 days after first use</string>
+    <string name="magic_link_qr_unavailable">QR Code unavailable</string>
+    <string name="returning_to_campaigns">Returning to campaigns in %1$d seconds…</string>
 </resources>

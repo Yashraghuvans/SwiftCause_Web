@@ -44,6 +44,8 @@ class PaymentRepository(
             Log.d(TAG, "Platform: ${request.metadata.platform}")
             Log.d(TAG, "Frequency: ${request.frequency ?: "one-time"}")
             Log.d(TAG, "Is Anonymous: ${request.metadata.isAnonymous}")
+            Log.d(TAG, "Is Gift Aid (metadata): ${request.metadata.isGiftAid}")
+            Log.d(TAG, "Recurring Interest (metadata): ${request.metadata.recurringInterest}")
             
             // Build request JSON (exactly matching web implementation)
             val requestJson = JSONObject().apply {
@@ -58,6 +60,8 @@ class PaymentRepository(
                     put("donorName", request.metadata.donorName ?: JSONObject.NULL)
                     put("donorEmail", request.metadata.donorEmail ?: JSONObject.NULL)
                     put("isAnonymous", request.metadata.isAnonymous)
+                    put("isGiftAid", request.metadata.isGiftAid)
+                    put("recurringInterest", request.metadata.recurringInterest)
                 })
             }
             

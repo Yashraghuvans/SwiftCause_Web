@@ -27,6 +27,13 @@ android {
             "STRIPE_PUBLISHABLE_KEY",
             "\"pk_test_51RbHd9QKGKb5ypYFiKavxDZPvuYS2yQwSdXZ5Ul7EC74vZOoKnDvMfsLyfgXEpWxA51ozDTTV40OiiuK0STTmiyR00c1O0o9jh\""
         )
+        
+        // Magic link base URL (for generating QR codes)
+        buildConfigField(
+            "String",
+            "MAGIC_LINK_BASE_URL",
+            "\"https://swiftcause--swiftcause-app.us-east4.hosted.app\""
+        )
     }
 
     buildTypes {
@@ -93,6 +100,10 @@ dependencies {
     implementation(libs.stripe.terminal)
     implementation(libs.stripe.terminal.ktx)
     implementation(libs.stripe.terminal.taptopay)
+    
+    // QR Code generation
+    implementation("com.google.zxing:core:3.5.3")
+    implementation("com.journeyapps:zxing-android-embedded:4.3.0")
     
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

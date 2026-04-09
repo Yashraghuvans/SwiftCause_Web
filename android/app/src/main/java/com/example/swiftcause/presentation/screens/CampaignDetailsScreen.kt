@@ -61,7 +61,7 @@ import coil.request.ImageRequest
 fun CampaignDetailsScreen(
     campaign: Campaign,
     onBackClick: () -> Unit,
-    onDonateClick: (amount: Long, isRecurring: Boolean, interval: String?) -> Unit
+    onDonateClick: (amount: Long, isRecurring: Boolean, interval: String?, email: String?) -> Unit
 ) {
     android.util.Log.d("CampaignDetails", "Screen rendered for campaign: ${campaign.title}, videoUrl: '${campaign.videoUrl}'")
 
@@ -70,6 +70,7 @@ fun CampaignDetailsScreen(
     var customAmount by remember { mutableStateOf("") }
     var isRecurring by remember { mutableStateOf(false) }
     var selectedInterval by remember { mutableStateOf("monthly") }
+    var recurringEmail by remember { mutableStateOf("") }
     var currentImageIndex by remember { mutableIntStateOf(0) }
 
     val images = campaign.getAllImages()
@@ -245,6 +246,7 @@ fun CampaignDetailsScreen(
             customAmount = customAmount,
             isRecurring = isRecurring,
             selectedInterval = selectedInterval,
+            recurringEmail = recurringEmail,
             onAmountSelected = {
                 selectedAmount = it
                 customAmount = ""
@@ -255,12 +257,18 @@ fun CampaignDetailsScreen(
             },
             onRecurringToggle = { isRecurring = it },
             onIntervalSelected = { selectedInterval = it },
+            onRecurringEmailChanged = { recurringEmail = it },
             onDonateClick = {
                 val amountInMajorUnits = if (selectedAmount > 0) selectedAmount else customAmount.toLongOrNull() ?: 0L
                 if (amountInMajorUnits > 0) {
                     // Convert to minor units (cents/pence) by multiplying by 100
                     val amountInMinorUnits = amountInMajorUnits * 100
-                    onDonateClick(amountInMinorUnits, isRecurring, if (isRecurring) selectedInterval else null)
+                    onDonateClick(
+                        amountInMinorUnits, 
+                        isRecurring, 
+                        if (isRecurring) selectedInterval else null,
+                        if (isRecurring) recurringEmail else null
+                    )
                 }
             },
             modifier = Modifier.align(Alignment.BottomCenter)
@@ -462,15 +470,21 @@ private fun DonationPanel(
     customAmount: String,
     isRecurring: Boolean,
     selectedInterval: String,
+    recurringEmail: String,
     onAmountSelected: (Long) -> Unit,
     onCustomAmountChanged: (String) -> Unit,
     onRecurringToggle: (Boolean) -> Unit,
     onIntervalSelected: (String) -> Unit,
+    onRecurringEmailChanged: (String) -> Unit,
     onDonateClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val amounts = campaign.predefinedAmounts.ifEmpty { listOf(10L, 25L, 50L, 100L, 250L, 500L) }
-    val isDonateEnabled = selectedAmount > 0 || (customAmount.toLongOrNull() ?: 0) > 0
+    
+    // Validate: amount > 0, and if recurring, email must be valid
+    val isValidEmail = recurringEmail.contains("@") && recurringEmail.contains(".")
+    val isDonateEnabled = (selectedAmount > 0 || (customAmount.toLongOrNull() ?: 0) > 0) &&
+                         (!isRecurring || (isRecurring && isValidEmail))
 
     Surface(
         modifier = modifier
@@ -625,6 +639,28 @@ private fun DonationPanel(
                             modifier = Modifier.weight(1f)
                         )
                     }
+                    
+                    // Email input for recurring donations
+                    Spacer(modifier = Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = recurringEmail,
+                        onValueChange = onRecurringEmailChanged,
+                        label = { Text("Email Address *") },
+                        placeholder = { Text("Required to manage your subscription") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = PrimaryGreen,
+                            focusedLabelColor = PrimaryGreen
+                        )
+                    )
+                    Text(
+                        text = "We need your email to send you subscription management links",
+                        fontSize = 12.sp,
+                        color = Color(0xFF64748B),
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
                 }
             }
 

@@ -37,6 +37,7 @@ import com.example.swiftcause.domain.models.KioskSession
 import com.example.swiftcause.presentation.screens.CampaignDetailsScreen
 import com.example.swiftcause.presentation.screens.CampaignListScreen
 import com.example.swiftcause.presentation.screens.KioskLoginScreen
+import com.example.swiftcause.presentation.screens.ThankYouScreen
 import com.example.swiftcause.presentation.viewmodels.CampaignListViewModel
 import com.example.swiftcause.presentation.viewmodels.PaymentState
 import com.example.swiftcause.presentation.viewmodels.PaymentViewModel
@@ -59,7 +60,15 @@ data class PendingDonation(
     val campaign: Campaign,
     val amount: Long,
     val isRecurring: Boolean,
-    val interval: String?
+    val interval: String?,
+    val email: String? = null
+)
+
+data class ThankYouData(
+    val campaignTitle: String,
+    val amount: Long,
+    val currency: String,
+    val paymentIntentId: String
 )
 
 class MainActivity : ComponentActivity() {
@@ -113,6 +122,8 @@ fun KioskMainContent(
     // Track selected payment method (null = show selection, "card" or "tap")
     var selectedPaymentMethod by remember { mutableStateOf<String?>(null) }
     var pendingDonation by remember { mutableStateOf<PendingDonation?>(null) }
+    var showThankYouScreen by remember { mutableStateOf(false) }
+    var thankYouData by remember { mutableStateOf<ThankYouData?>(null) }
     
     // Track location permission state
     var hasLocationPermission by remember { 
@@ -191,15 +202,25 @@ fun KioskMainContent(
             }
             is PaymentState.Success -> {
                 val success = paymentState as PaymentState.Success
-                Toast.makeText(
-                    context,
-                    "Donation successful! Thank you for your support.",
-                    Toast.LENGTH_LONG
-                ).show()
-                viewModel.clearSelectedCampaign()
+                
+                // Extract payment intent ID from transaction ID (format: "pi_xxx" or full client secret)
+                val paymentIntentId = success.transactionId.split("_secret").firstOrNull() ?: success.transactionId
+                
+                // Fetch magic link token from Firestore
+                paymentViewModel.fetchMagicLinkToken(paymentIntentId)
+                
+                // Show Thank You screen with payment details
+                thankYouData = ThankYouData(
+                    campaignTitle = pendingDonation?.campaign?.title ?: "Campaign",
+                    amount = success.amount,
+                    currency = success.currency,
+                    paymentIntentId = paymentIntentId
+                )
+                showThankYouScreen = true
+                
+                // Clear payment state but keep pending donation for thank you screen
                 paymentViewModel.resetPayment()
                 selectedPaymentMethod = null
-                pendingDonation = null
             }
             is PaymentState.Error -> {
                 val error = paymentState as PaymentState.Error
@@ -228,16 +249,24 @@ fun KioskMainContent(
     LaunchedEffect(tapToPayState) {
         when (tapToPayState) {
             is TapToPayState.PaymentSuccess -> {
-                Toast.makeText(
-                    context,
-                    "Tap to Pay donation successful! Thank you!",
-                    Toast.LENGTH_LONG
-                ).show()
-                viewModel.clearSelectedCampaign()
-                paymentViewModel.resetPayment()
+                val tapSuccess = tapToPayState as TapToPayState.PaymentSuccess
+                val paymentIntentId = tapSuccess.paymentIntent.id ?: ""
+                
+                // Fetch magic link token
+                paymentViewModel.fetchMagicLinkToken(paymentIntentId)
+                
+                // Show Thank You screen
+                thankYouData = ThankYouData(
+                    campaignTitle = pendingDonation?.campaign?.title ?: "Campaign",
+                    amount = pendingDonation?.amount ?: 0L,
+                    currency = pendingDonation?.campaign?.currency ?: "gbp",
+                    paymentIntentId = paymentIntentId
+                )
+                showThankYouScreen = true
+                
                 tapToPayViewModel.reset()
+                paymentViewModel.resetPayment()
                 selectedPaymentMethod = null
-                pendingDonation = null
             }
             is TapToPayState.Error -> {
                 val error = tapToPayState as TapToPayState.Error
@@ -266,13 +295,14 @@ fun KioskMainContent(
                 CampaignDetailsScreen(
                     campaign = campaign,
                     onBackClick = { viewModel.clearSelectedCampaign() },
-                    onDonateClick = { amount, isRecurring, interval ->
+                    onDonateClick = { amount, isRecurring, interval, email ->
                         // Store pending donation and show payment method selection
                         pendingDonation = PendingDonation(
                             campaign = campaign,
                             amount = amount,
                             isRecurring = isRecurring,
-                            interval = interval
+                            interval = interval,
+                            email = email
                         )
                         selectedPaymentMethod = null // Trigger payment method selection
                     }
@@ -408,7 +438,9 @@ fun KioskMainContent(
                                         amount = donation.amount,
                                         isRecurring = donation.isRecurring,
                                         interval = donation.interval,
-                                        paymentViewModel = paymentViewModel
+                                        email = donation.email,
+                                        paymentViewModel = paymentViewModel,
+                                        kioskSession = kioskSession
                                     )
                                 }
                             },
@@ -439,7 +471,9 @@ fun KioskMainContent(
                                         amount = donation.amount,
                                         isRecurring = donation.isRecurring,
                                         interval = donation.interval,
-                                        paymentViewModel = paymentViewModel
+                                        email = donation.email,
+                                        paymentViewModel = paymentViewModel,
+                                        kioskSession = kioskSession
                                     )
                                 }
                             },
@@ -574,6 +608,24 @@ fun KioskMainContent(
             }
             else -> {}
         }
+        
+        // Thank You Screen overlay (shown after successful payment)
+        if (showThankYouScreen && thankYouData != null) {
+            val magicLinkToken by paymentViewModel.magicLinkToken.collectAsState()
+            
+            ThankYouScreen(
+                campaignTitle = thankYouData!!.campaignTitle,
+                amount = thankYouData!!.amount,
+                currency = thankYouData!!.currency,
+                magicLinkToken = magicLinkToken,
+                onDismiss = {
+                    showThankYouScreen = false
+                    thankYouData = null
+                    pendingDonation = null
+                    viewModel.clearSelectedCampaign()
+                }
+            )
+        }
     }
 }
 
@@ -585,7 +637,9 @@ private fun handleDonation(
     amount: Long,
     isRecurring: Boolean,
     interval: String?,
-    paymentViewModel: PaymentViewModel
+    email: String?,
+    paymentViewModel: PaymentViewModel,
+    kioskSession: KioskSession?
 ) {
     android.util.Log.d("MainActivity", "=== Donation Button Clicked ===")
     android.util.Log.d("MainActivity", "Campaign: ${campaign.title}")
@@ -595,6 +649,7 @@ private fun handleDonation(
     android.util.Log.d("MainActivity", "Currency: ${campaign.currency}")
     android.util.Log.d("MainActivity", "Is Recurring: $isRecurring")
     android.util.Log.d("MainActivity", "Interval: $interval")
+    android.util.Log.d("MainActivity", "Email: $email")
     
     // Get currency from campaign
     val currency = campaign.currency.lowercase()
@@ -619,7 +674,10 @@ private fun handleDonation(
         campaignId = campaign.id,
         campaignTitle = campaign.title,
         organizationId = campaign.organizationId,
-        isAnonymous = true,  // Kiosk donations are anonymous by default
-        frequency = frequency
+        donorEmail = email,
+        isAnonymous = email == null,  // Anonymous if no email provided
+        frequency = frequency,
+        isGiftAid = campaign.isGiftAid,  // Pass Gift Aid flag for magic link generation
+        kioskId = kioskSession?.kioskId
     )
 }
