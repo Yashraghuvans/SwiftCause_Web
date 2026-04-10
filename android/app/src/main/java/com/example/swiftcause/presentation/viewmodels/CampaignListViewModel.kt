@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.swiftcause.data.repository.CampaignRepository
 import com.example.swiftcause.domain.models.Campaign
 import com.example.swiftcause.domain.models.KioskSession
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -20,26 +21,26 @@ data class CampaignListUiState(
 class CampaignListViewModel(
     private val repository: CampaignRepository = CampaignRepository()
 ) : ViewModel() {
-    
+
     private val _uiState = MutableStateFlow(CampaignListUiState())
     val uiState: StateFlow<CampaignListUiState> = _uiState.asStateFlow()
-    
+
     fun loadCampaigns(kioskSession: KioskSession) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true, error = null)
-            
+
             // Fetch organization currency once at the start
             val orgCurrency = kioskSession.organizationId?.let {
                 repository.getOrganizationCurrency(it)
             }
-            
+
             val result = repository.getCampaignsForKiosk(
                 assignedCampaignIds = kioskSession.assignedCampaigns,
                 organizationId = kioskSession.organizationId,
                 showAllCampaigns = kioskSession.settings.showAllCampaigns,
                 organizationCurrency = orgCurrency  // Pass cached currency
             )
-            
+
             result.fold(
                 onSuccess = { campaigns ->
                     val displayCampaigns = if (kioskSession.settings.maxCampaignsDisplay > 0) {
@@ -61,15 +62,24 @@ class CampaignListViewModel(
             )
         }
     }
-    
+
     fun selectCampaign(campaign: Campaign) {
         _uiState.value = _uiState.value.copy(selectedCampaign = campaign)
     }
-    
+
     fun clearSelectedCampaign() {
         _uiState.value = _uiState.value.copy(selectedCampaign = null)
     }
-    
+
+    fun startPolling(kioskSession: KioskSession, interval: Long = 60000L) { // Increased interval to 1 minute
+        viewModelScope.launch {
+            while (true) {
+                loadCampaigns(kioskSession)
+                delay(interval)
+            }
+        }
+    }
+
     fun refreshCampaign(campaignId: String) {
         viewModelScope.launch {
             val result = repository.getCampaignById(campaignId)
@@ -89,7 +99,7 @@ class CampaignListViewModel(
             )
         }
     }
-    
+
     fun retry(kioskSession: KioskSession) {
         loadCampaigns(kioskSession)
     }

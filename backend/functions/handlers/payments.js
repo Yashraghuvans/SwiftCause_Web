@@ -179,6 +179,9 @@ const createKioskPaymentIntent = (req, res) => {
         campaignId,
         campaignTitle: campaignData.title || metadata.campaignTitle || null,
         organizationId: orgId || metadata.organizationId || null,
+        // Keep both keys to support mixed webhook consumers and old/new clients.
+        isGiftAid: metadata.isGiftAid,
+        giftAidEnabled: metadata.giftAidEnabled ?? metadata.isGiftAid,
       };
 
       const orgSnap = await admin

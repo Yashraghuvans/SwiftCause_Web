@@ -1,246 +1,208 @@
 package com.example.swiftcause.presentation.screens
 
 import android.graphics.Bitmap
+import android.graphics.Color as AndroidColor
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material3.*
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.swiftcause.BuildConfig
 import com.example.swiftcause.R
 import com.example.swiftcause.ui.theme.PrimaryGreen
 import com.google.zxing.BarcodeFormat
+import com.google.zxing.EncodeHintType
 import com.google.zxing.qrcode.QRCodeWriter
 import kotlinx.coroutines.delay
 
-/**
- * Thank You Screen shown after successful donation
- * Displays QR code with magic link if available
- * Auto-dismisses after 5 seconds
- */
+private const val DISMISS_DELAY_WITH_QR = 30000L
+
 @Composable
 fun ThankYouScreen(
-    campaignTitle: String,
-    amount: Long,
-    currency: String,
-    magicLinkToken: String?,
+    magicLinkToken: String,
     onDismiss: () -> Unit
 ) {
-    // Auto-dismiss after 30 seconds if magic link present, otherwise 5 seconds
-    val dismissDelay = if (magicLinkToken != null) 30000L else 5000L
-    
-    LaunchedEffect(magicLinkToken) {
-        delay(dismissDelay)
-        onDismiss()
-    }
-
-    // Countdown timer for visual feedback
-    val totalSeconds = if (magicLinkToken != null) 30 else 5
+    val totalSeconds = (DISMISS_DELAY_WITH_QR / 1000).toInt()
     var secondsRemaining by remember { mutableIntStateOf(totalSeconds) }
+
+    val animatedProgress by animateFloatAsState(
+        targetValue = secondsRemaining.toFloat() / totalSeconds,
+        animationSpec = tween(durationMillis = 1000, easing = LinearEasing),
+        label = "countdownProgress"
+    )
+
     LaunchedEffect(magicLinkToken) {
-        repeat(totalSeconds) {
+        secondsRemaining = totalSeconds
+        while (secondsRemaining > 0) {
             delay(1000)
             secondsRemaining--
         }
+        onDismiss()
     }
 
-    // Scale animation for success icon
+    var showCheck by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        showCheck = true
+    }
+
     val scale by animateFloatAsState(
-        targetValue = 1f,
+        targetValue = if (showCheck) 1f else 0f,
         animationSpec = spring(
             dampingRatio = Spring.DampingRatioMediumBouncy,
             stiffness = Spring.StiffnessLow
         ),
-        label = "scale"
+        label = "checkScale"
     )
 
-    Box(
+    Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFFF8FAFC)),
+            .background(Color(0xFFF0FDF4)) // Light green background
+            .padding(32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        // Animated Checkmark
+        Box(
+            modifier = Modifier
+                .size(100.dp)
+                .graphicsLayer {
+                    scaleX = scale
+                    scaleY = scale
+                }
+                .clip(CircleShape)
+                .background(PrimaryGreen),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Default.Check,
+                contentDescription = "Success",
+                tint = Color.White,
+                modifier = Modifier.size(60.dp)
+            )
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // Thank You Message
+        Text(
+            text = stringResource(R.string.thank_you_for_your_donation),
+            fontSize = 28.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color(0xFF14532D), // Darker green
+            textAlign = TextAlign.Center
+        )
+
+        Spacer(modifier = Modifier.height(32.dp))
+
+        // QR Code
+        val qrBitmap = remember(magicLinkToken) {
+            generateQrCode(magicLinkToken)
+        }
+        qrBitmap?.let {
+            Image(
+                bitmap = it.asImageBitmap(),
+                contentDescription = stringResource(R.string.qr_code_content_description),
+                modifier = Modifier.size(220.dp)
+            )
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Instructional Text
+        Text(
+            text = stringResource(R.string.scan_qr_for_gift_aid),
+            fontSize = 16.sp,
+            color = Color(0xFF166534), // Medium green
+            textAlign = TextAlign.Center,
+            modifier = Modifier.widthIn(max = 300.dp)
+        )
+
+        Spacer(modifier = Modifier.height(32.dp))
+
+        // Countdown Timer
+        CountdownCircle(
+            secondsRemaining = secondsRemaining,
+            progress = animatedProgress
+        )
+    }
+}
+
+@Composable
+private fun CountdownCircle(secondsRemaining: Int, progress: Float) {
+    val strokeWidth = with(LocalDensity.current) { 6.dp.toPx() }
+    val primaryColor = PrimaryGreen
+    val trackColor = Color(0xFFBBF7D0) // Light green track
+
+    Box(
+        modifier = Modifier.size(70.dp),
         contentAlignment = Alignment.Center
     ) {
-        Column(
+        Text(
+            text = secondsRemaining.toString(),
+            fontSize = 24.sp,
+            fontWeight = FontWeight.Bold,
+            color = primaryColor
+        )
+        Box(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(32.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(24.dp)
-        ) {
-            // Success icon with animation
-            Icon(
-                imageVector = Icons.Filled.CheckCircle,
-                contentDescription = "Success",
-                tint = PrimaryGreen,
-                modifier = Modifier
-                    .size(80.dp)
-                    .graphicsLayer {
-                        scaleX = scale
-                        scaleY = scale
-                    }
-            )
-
-            // Thank you message
-            Text(
-                text = stringResource(R.string.thank_you),
-                fontSize = 32.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color(0xFF1E293B)
-            )
-
-            Text(
-                text = stringResource(
-                    R.string.donation_successful,
-                    formatAmount(amount, currency),
-                    campaignTitle
-                ),
-                fontSize = 16.sp,
-                color = Color(0xFF64748B),
-                textAlign = TextAlign.Center,
-                lineHeight = 24.sp
-            )
-
-            // QR Code section (only if magic link token is available)
-            if (magicLinkToken != null) {
-                Divider(modifier = Modifier.padding(vertical = 8.dp))
-
-                Text(
-                    text = stringResource(R.string.magic_link_title),
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = Color(0xFF1E293B)
-                )
-
-                Text(
-                    text = stringResource(R.string.magic_link_instructions),
-                    fontSize = 14.sp,
-                    color = Color(0xFF64748B),
-                    textAlign = TextAlign.Center
-                )
-
-                // QR Code
-                QRCodeDisplay(
-                    url = buildMagicLinkUrl(magicLinkToken),
-                    modifier = Modifier.size(300.dp)
-                )
-
-                Text(
-                    text = stringResource(R.string.magic_link_expires),
-                    fontSize = 12.sp,
-                    color = Color(0xFF94A3B8)
-                )
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // Auto-dismiss countdown
-            Text(
-                text = stringResource(R.string.returning_to_campaigns, secondsRemaining),
-                fontSize = 14.sp,
-                color = Color(0xFF94A3B8),
-                textAlign = TextAlign.Center
-            )
-        }
+                .fillMaxSize()
+                .drawBehind {
+                    drawArc(
+                        color = trackColor,
+                        startAngle = 0f,
+                        sweepAngle = 360f,
+                        useCenter = false,
+                        style = Stroke(width = strokeWidth)
+                    )
+                    drawArc(
+                        color = primaryColor,
+                        startAngle = -90f,
+                        sweepAngle = 360 * progress,
+                        useCenter = false,
+                        style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
+                    )
+                }
+        )
     }
 }
 
-/**
- * Displays a QR code for the given URL
- */
-@Composable
-fun QRCodeDisplay(
-    url: String,
-    modifier: Modifier = Modifier
-) {
-    val qrBitmap = remember(url) { generateQRCode(url, 1024) }
-
-    if (qrBitmap != null) {
-        Surface(
-            modifier = modifier,
-            color = Color.White,
-            shadowElevation = 4.dp
-        ) {
-            Image(
-                bitmap = qrBitmap.asImageBitmap(),
-                contentDescription = "QR Code",
-                modifier = Modifier.padding(16.dp)
-            )
-        }
-    } else {
-        // Fallback if QR generation fails
-        Surface(
-            modifier = modifier,
-            color = Color(0xFFF1F5F9)
-        ) {
-            Box(
-                contentAlignment = Alignment.Center,
-                modifier = Modifier.fillMaxSize()
-            ) {
-                Text(
-                    text = stringResource(R.string.magic_link_qr_unavailable),
-                    color = Color(0xFF64748B),
-                    textAlign = TextAlign.Center
-                )
-            }
-        }
-    }
-}
-
-/**
- * Generates a QR code bitmap from URL
- */
-private fun generateQRCode(content: String, size: Int): Bitmap? {
+private fun generateQrCode(token: String?): Bitmap? {
+    if (token.isNullOrBlank()) return null
+    val fullUrl = "${BuildConfig.MAGIC_LINK_BASE_URL}/claim/$token"
     return try {
         val writer = QRCodeWriter()
-        val bitMatrix = writer.encode(content, BarcodeFormat.QR_CODE, size, size)
-        val width = bitMatrix.width
-        val height = bitMatrix.height
-        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.RGB_565)
-
-        for (x in 0 until width) {
-            for (y in 0 until height) {
-                bitmap.setPixel(
-                    x,
-                    y,
-                    if (bitMatrix[x, y]) android.graphics.Color.BLACK else android.graphics.Color.WHITE
-                )
+        val hints = mapOf(EncodeHintType.MARGIN to 1)
+        val bitMatrix = writer.encode(fullUrl, BarcodeFormat.QR_CODE, 512, 512, hints)
+        val bitmap = Bitmap.createBitmap(512, 512, Bitmap.Config.RGB_565)
+        for (x in 0 until 512) {
+            for (y in 0 until 512) {
+                bitmap.setPixel(x, y, if (bitMatrix[x, y]) AndroidColor.BLACK else AndroidColor.WHITE)
             }
         }
         bitmap
     } catch (e: Exception) {
-        android.util.Log.e("ThankYouScreen", "Failed to generate QR code", e)
+        e.printStackTrace()
         null
-    }
-}
-
-/**
- * Builds the full magic link URL
- */
-private fun buildMagicLinkUrl(token: String): String {
-    return "${com.example.swiftcause.BuildConfig.MAGIC_LINK_BASE_URL}/link/$token"
-}
-
-/**
- * Formats amount with currency symbol
- */
-private fun formatAmount(amountInMinorUnits: Long, currency: String): String {
-    val amount = amountInMinorUnits / 100.0
-    return when (currency.lowercase()) {
-        "gbp" -> "£%.2f".format(amount)
-        "usd" -> "$%.2f".format(amount)
-        "eur" -> "€%.2f".format(amount)
-        else -> "${currency.uppercase()} %.2f".format(amount)
     }
 }

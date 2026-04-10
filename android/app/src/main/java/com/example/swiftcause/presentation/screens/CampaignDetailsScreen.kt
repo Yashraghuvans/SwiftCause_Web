@@ -61,7 +61,8 @@ import coil.request.ImageRequest
 fun CampaignDetailsScreen(
     campaign: Campaign,
     onBackClick: () -> Unit,
-    onDonateClick: (amount: Long, isRecurring: Boolean, interval: String?, email: String?) -> Unit
+    onDonateClick: (amount: Long, isRecurring: Boolean, interval: String?, email: String?) -> Unit,
+    showBackButton: Boolean = true // New parameter to control back button visibility
 ) {
     android.util.Log.d("CampaignDetails", "Screen rendered for campaign: ${campaign.title}, videoUrl: '${campaign.videoUrl}'")
 
@@ -111,30 +112,32 @@ fun CampaignDetailsScreen(
                 .padding(bottom = 320.dp) // Space for fixed bottom panel
         ) {
             // Header with back button
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 12.dp)
-            ) {
-                Row(
+            if (showBackButton) {
+                Box(
                     modifier = Modifier
-                        .clickable { onBackClick() }
-                        .padding(8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp)
                 ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = stringResource(R.string.content_description_back_button),
-                        tint = PrimaryGreen,
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Text(
-                        text = stringResource(R.string.back),
-                        color = PrimaryGreen,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Medium
-                    )
+                    Row(
+                        modifier = Modifier
+                            .clickable { onBackClick() }
+                            .padding(8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = stringResource(R.string.content_description_back_button),
+                            tint = PrimaryGreen,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Text(
+                            text = stringResource(R.string.back),
+                            color = PrimaryGreen,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
                 }
             }
 
@@ -264,8 +267,8 @@ fun CampaignDetailsScreen(
                     // Convert to minor units (cents/pence) by multiplying by 100
                     val amountInMinorUnits = amountInMajorUnits * 100
                     onDonateClick(
-                        amountInMinorUnits, 
-                        isRecurring, 
+                        amountInMinorUnits,
+                        isRecurring,
                         if (isRecurring) selectedInterval else null,
                         if (isRecurring) recurringEmail else null
                     )
@@ -480,7 +483,7 @@ private fun DonationPanel(
     modifier: Modifier = Modifier
 ) {
     val amounts = campaign.predefinedAmounts.ifEmpty { listOf(10L, 25L, 50L, 100L, 250L, 500L) }
-    
+
     // Validate: amount > 0, and if recurring, email must be valid
     val isValidEmail = recurringEmail.contains("@") && recurringEmail.contains(".")
     val isDonateEnabled = (selectedAmount > 0 || (customAmount.toLongOrNull() ?: 0) > 0) &&
@@ -639,7 +642,7 @@ private fun DonationPanel(
                             modifier = Modifier.weight(1f)
                         )
                     }
-                    
+
                     // Email input for recurring donations
                     Spacer(modifier = Modifier.height(12.dp))
                     OutlinedTextField(
@@ -946,8 +949,7 @@ private fun YouTubeVideoPlayer(
                                                                 var errors = {2: 'Invalid ID', 5: 'HTML5 error', 100: 'Not found', 101: 'Not embeddable', 150: 'Not embeddable', 152: 'Cannot play in embedded players'};
                                                                 Android.onError(errors[event.data] || 'Error: ' + event.data);
                                                             }
-                                                        }
-                                                    });
+                                                        });
                                                 }
                                             </script>
                                         </body>
@@ -1017,12 +1019,12 @@ private fun RichTextContent(
         .replace(Regex("<iframe[^>]*>.*?</iframe>", RegexOption.IGNORE_CASE), "")
         .replace(Regex("on\\w+=\"[^\"]*\"", RegexOption.IGNORE_CASE), "")
         .trim()
-    
+
     if (sanitizedHtml.isEmpty()) return
-    
+
     // Check if it contains HTML tags
     val containsHtml = Regex("<[^>]+>").containsMatchIn(sanitizedHtml)
-    
+
     if (containsHtml) {
         // Render as HTML using TextView
         RenderHtmlContent(sanitizedHtml, textColor, modifier)
@@ -1045,7 +1047,7 @@ private fun RenderHtmlContent(
                 textSize = 15f
                 setTextColor(textColor.toArgb())
                 setLineSpacing(8f, 1f)
-                
+
                 // Parse and set HTML content
                 val spanned = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
                     android.text.Html.fromHtml(htmlContent, android.text.Html.FROM_HTML_MODE_LEGACY)
@@ -1054,7 +1056,7 @@ private fun RenderHtmlContent(
                     android.text.Html.fromHtml(htmlContent)
                 }
                 text = spanned
-                
+
                 setLinkTextColor(PrimaryGreen.toArgb())
                 movementMethod = android.text.method.LinkMovementMethod.getInstance()
             }
@@ -1079,7 +1081,7 @@ private fun RenderLegacyFormat(
 ) {
     // Split by <hr> tags first
     val hrParts = text.split(Regex("<hr\\s*/?>", RegexOption.IGNORE_CASE))
-    
+
     Column(modifier = modifier.fillMaxWidth()) {
         hrParts.forEachIndexed { hrIndex, hrPart ->
             if (hrIndex > 0) {
@@ -1091,15 +1093,15 @@ private fun RenderLegacyFormat(
                 )
                 Spacer(modifier = Modifier.height(12.dp))
             }
-            
+
             // Split by <br> tags
             val brParts = hrPart.split(Regex("<br\\s*/?>", RegexOption.IGNORE_CASE))
-            
+
             brParts.forEachIndexed { brIndex, brPart ->
                 if (brIndex > 0) {
                     Spacer(modifier = Modifier.height(4.dp))
                 }
-                
+
                 // Parse **bold** text
                 if (brPart.trim().isNotEmpty()) {
                     RenderBoldText(brPart.trim(), textColor)
@@ -1118,7 +1120,7 @@ private fun RenderBoldText(
     // The pattern in parentheses creates a capturing group, so matches are included in results
     val boldPattern = Regex("(\\*\\*.+?\\*\\*)")
     val parts = text.split(boldPattern)
-    
+
     Text(
         text = buildAnnotatedString {
             parts.forEach { part ->

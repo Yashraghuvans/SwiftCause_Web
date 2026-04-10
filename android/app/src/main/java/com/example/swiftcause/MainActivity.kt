@@ -75,15 +75,15 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        
+
         // Initialize Stripe with key from local.properties (from root .env)
         StripeConfig.initialize(this)
-        
+
         setContent {
             SwiftCauseTheme {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
                     var kioskSession by remember { mutableStateOf<KioskSession?>(null) }
-                    
+
                     when {
                         kioskSession == null -> {
                             KioskLoginScreen(
@@ -118,15 +118,15 @@ fun KioskMainContent(
     val clientSecret by paymentViewModel.clientSecret.collectAsState()
     val tapToPayState by tapToPayViewModel.state.collectAsState()
     val context = LocalContext.current
-    
+
     // Track selected payment method (null = show selection, "card" or "tap")
     var selectedPaymentMethod by remember { mutableStateOf<String?>(null) }
     var pendingDonation by remember { mutableStateOf<PendingDonation?>(null) }
     var showThankYouScreen by remember { mutableStateOf(false) }
     var thankYouData by remember { mutableStateOf<ThankYouData?>(null) }
-    
+
     // Track location permission state
-    var hasLocationPermission by remember { 
+    var hasLocationPermission by remember {
         mutableStateOf(
             ContextCompat.checkSelfPermission(
                 context,
@@ -134,7 +134,7 @@ fun KioskMainContent(
             ) == PackageManager.PERMISSION_GRANTED
         )
     }
-    
+
     // Permission launcher
     val locationPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
@@ -152,9 +152,11 @@ fun KioskMainContent(
             ).show()
         }
     }
-    
+
     // Initialize Tap to Pay on app start (request permission first)
     LaunchedEffect(Unit) {
+        viewModel.loadCampaigns(kioskSession)
+        viewModel.startPolling(kioskSession)
         if (hasLocationPermission) {
             val isDebuggable = (context.applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0
             tapToPayViewModel.initializeTapToPay(isSimulated = isDebuggable)
@@ -163,12 +165,14 @@ fun KioskMainContent(
             locationPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
         }
     }
-    
+
     // Initialize PaymentSheet
     val paymentSheet = rememberPaymentSheet { result ->
-        paymentViewModel.handlePaymentResult(result)
+        paymentViewModel.handlePaymentResult(result) {
+            viewModel.loadCampaigns(kioskSession)
+        }
     }
-    
+
     // Handle payment state changes
     LaunchedEffect(paymentState) {
         when (paymentState) {
@@ -202,13 +206,13 @@ fun KioskMainContent(
             }
             is PaymentState.Success -> {
                 val success = paymentState as PaymentState.Success
-                
+
                 // Extract payment intent ID from transaction ID (format: "pi_xxx" or full client secret)
                 val paymentIntentId = success.transactionId.split("_secret").firstOrNull() ?: success.transactionId
-                
+
                 // Fetch magic link token from Firestore
                 paymentViewModel.fetchMagicLinkToken(paymentIntentId)
-                
+
                 // Show Thank You screen with payment details
                 thankYouData = ThankYouData(
                     campaignTitle = pendingDonation?.campaign?.title ?: "Campaign",
@@ -217,7 +221,7 @@ fun KioskMainContent(
                     paymentIntentId = paymentIntentId
                 )
                 showThankYouScreen = true
-                
+
                 // Clear payment state but keep pending donation for thank you screen
                 paymentViewModel.resetPayment()
                 selectedPaymentMethod = null
@@ -244,17 +248,17 @@ fun KioskMainContent(
             else -> { /* Idle or Loading */ }
         }
     }
-    
+
     // Handle Tap to Pay state changes
     LaunchedEffect(tapToPayState) {
         when (tapToPayState) {
             is TapToPayState.PaymentSuccess -> {
                 val tapSuccess = tapToPayState as TapToPayState.PaymentSuccess
                 val paymentIntentId = tapSuccess.paymentIntent.id ?: ""
-                
+
                 // Fetch magic link token
                 paymentViewModel.fetchMagicLinkToken(paymentIntentId)
-                
+
                 // Show Thank You screen
                 thankYouData = ThankYouData(
                     campaignTitle = pendingDonation?.campaign?.title ?: "Campaign",
@@ -263,7 +267,7 @@ fun KioskMainContent(
                     paymentIntentId = paymentIntentId
                 )
                 showThankYouScreen = true
-                
+
                 tapToPayViewModel.reset()
                 paymentViewModel.resetPayment()
                 selectedPaymentMethod = null
@@ -282,19 +286,26 @@ fun KioskMainContent(
             else -> { /* Other states */ }
         }
     }
-    
+
     LaunchedEffect(kioskSession) {
         viewModel.loadCampaigns(kioskSession)
     }
-    
+
     // Show loading overlay when payment intent is being created
     Box(modifier = modifier.fillMaxSize()) {
+        val hasSingleCampaign = uiState.campaigns.size == 1
+        val activeCampaign = uiState.selectedCampaign ?: if (hasSingleCampaign) uiState.campaigns.first() else null
+
         when {
-            uiState.selectedCampaign != null -> {
-                val campaign = uiState.selectedCampaign!!
+            activeCampaign != null -> {
+                val campaign = activeCampaign
                 CampaignDetailsScreen(
                     campaign = campaign,
-                    onBackClick = { viewModel.clearSelectedCampaign() },
+                    onBackClick = {
+                        if (!hasSingleCampaign) {
+                            viewModel.clearSelectedCampaign()
+                        }
+                    },
                     onDonateClick = { amount, isRecurring, interval, email ->
                         // Store pending donation and show payment method selection
                         pendingDonation = PendingDonation(
@@ -330,24 +341,11 @@ fun KioskMainContent(
                     isLoading = false,
                     onCampaignClick = { campaign ->
                         viewModel.selectCampaign(campaign)
-                    },
-                    onAmountClick = { campaign, amount ->
-                        // Quick donate: show payment method selection
-                        pendingDonation = PendingDonation(
-                            campaign = campaign,
-                            amount = amount * 100, // Convert to minor units
-                            isRecurring = false,
-                            interval = null
-                        )
-                        selectedPaymentMethod = null // Trigger payment method selection
-                    },
-                    onDonateClick = { campaign ->
-                        viewModel.selectCampaign(campaign)
                     }
                 )
             }
         }
-        
+
         // Modern loading overlay when preparing payment intent
         if (paymentState is PaymentState.Loading) {
             Box(
@@ -376,18 +374,18 @@ fun KioskMainContent(
                             color = MaterialTheme.colorScheme.primary,
                             strokeWidth = 4.dp
                         )
-                        
+
                         Spacer(modifier = Modifier.height(24.dp))
-                        
+
                         Text(
                             text = "Preparing Payment",
                             fontSize = 18.sp,
                             fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
                             color = MaterialTheme.colorScheme.onSurface
                         )
-                        
+
                         Spacer(modifier = Modifier.height(8.dp))
-                        
+
                         Text(
                             text = "Please wait...",
                             fontSize = 14.sp,
@@ -397,7 +395,7 @@ fun KioskMainContent(
                 }
             }
         }
-        
+
         // Payment method selection dialog
         if (pendingDonation != null && selectedPaymentMethod == null) {
             Box(
@@ -425,9 +423,9 @@ fun KioskMainContent(
                             fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface
                         )
-                        
+
                         Spacer(modifier = Modifier.height(24.dp))
-                        
+
                         // Card Entry Button
                         Button(
                             onClick = {
@@ -457,9 +455,9 @@ fun KioskMainContent(
                                 fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold
                             )
                         }
-                        
+
                         Spacer(modifier = Modifier.height(16.dp))
-                        
+
                         // Tap to Pay Button (only if reader connected)
                         val readerReady = tapToPayState is TapToPayState.ReaderConnected
                         OutlinedButton(
@@ -483,20 +481,20 @@ fun KioskMainContent(
                             enabled = readerReady,
                             border = BorderStroke(
                                 width = 2.dp,
-                                color = if (readerReady) MaterialTheme.colorScheme.primary 
+                                color = if (readerReady) MaterialTheme.colorScheme.primary
                                        else MaterialTheme.colorScheme.outline
                             )
                         ) {
                             Text(
-                                text = if (readerReady) "📱 Tap Card on Phone" 
+                                text = if (readerReady) "📱 Tap Card on Phone"
                                        else "📱 Tap to Pay (Initializing...)",
                                 fontSize = 16.sp,
                                 fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold
                             )
                         }
-                        
+
                         Spacer(modifier = Modifier.height(16.dp))
-                        
+
                         // Cancel button
                         androidx.compose.material3.TextButton(
                             onClick = {
@@ -511,7 +509,7 @@ fun KioskMainContent(
                 }
             }
         }
-        
+
         // Tap to Pay waiting overlay
         when (tapToPayState) {
             is TapToPayState.WaitingForCard -> {
@@ -540,16 +538,16 @@ fun KioskMainContent(
                                 fontSize = 80.sp,
                                 modifier = Modifier.padding(bottom = 24.dp)
                             )
-                            
+
                             Text(
                                 text = "Tap Card on Phone",
                                 fontSize = 22.sp,
                                 fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
-                            
+
                             Spacer(modifier = Modifier.height(8.dp))
-                            
+
                             Text(
                                 text = "Hold your card near the top of the device",
                                 fontSize = 14.sp,
@@ -585,18 +583,18 @@ fun KioskMainContent(
                                 color = MaterialTheme.colorScheme.primary,
                                 strokeWidth = 4.dp
                             )
-                            
+
                             Spacer(modifier = Modifier.height(24.dp))
-                            
+
                             Text(
                                 text = "Processing Payment",
                                 fontSize = 18.sp,
                                 fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
-                            
+
                             Spacer(modifier = Modifier.height(8.dp))
-                            
+
                             Text(
                                 text = "Please wait...",
                                 fontSize = 14.sp,
@@ -608,23 +606,67 @@ fun KioskMainContent(
             }
             else -> {}
         }
-        
+
         // Thank You Screen overlay (shown after successful payment)
         if (showThankYouScreen && thankYouData != null) {
             val magicLinkToken by paymentViewModel.magicLinkToken.collectAsState()
-            
-            ThankYouScreen(
-                campaignTitle = thankYouData!!.campaignTitle,
-                amount = thankYouData!!.amount,
-                currency = thankYouData!!.currency,
-                magicLinkToken = magicLinkToken,
-                onDismiss = {
-                    showThankYouScreen = false
-                    thankYouData = null
-                    pendingDonation = null
-                    viewModel.clearSelectedCampaign()
+
+            if (magicLinkToken != null) {
+                ThankYouScreen(
+                    magicLinkToken = magicLinkToken!!,
+                    onDismiss = {
+                        showThankYouScreen = false
+                        thankYouData = null
+                        pendingDonation = null
+                        viewModel.clearSelectedCampaign()
+                    }
+                )
+            } else {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.55f))
+                        .clickable(enabled = false) {},
+                    contentAlignment = Alignment.Center
+                ) {
+                    androidx.compose.material3.Surface(
+                        modifier = Modifier
+                            .padding(32.dp)
+                            .width(320.dp),
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp),
+                        color = androidx.compose.ui.graphics.Color.White,
+                        shadowElevation = 8.dp
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.padding(vertical = 32.dp, horizontal = 24.dp)
+                        ) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(40.dp),
+                                color = MaterialTheme.colorScheme.primary,
+                                strokeWidth = 4.dp
+                            )
+
+                            Spacer(modifier = Modifier.height(18.dp))
+
+                            Text(
+                                text = "Payment complete",
+                                fontSize = 20.sp,
+                                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            Text(
+                                text = "Generating your QR code...",
+                                fontSize = 14.sp,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f)
+                            )
+                        }
+                    }
                 }
-            )
+            }
         }
     }
 }
@@ -650,10 +692,10 @@ private fun handleDonation(
     android.util.Log.d("MainActivity", "Is Recurring: $isRecurring")
     android.util.Log.d("MainActivity", "Interval: $interval")
     android.util.Log.d("MainActivity", "Email: $email")
-    
+
     // Get currency from campaign
     val currency = campaign.currency.lowercase()
-    
+
     // Determine frequency for backend
     val frequency = if (isRecurring) {
         when (interval) {
@@ -664,9 +706,9 @@ private fun handleDonation(
     } else {
         null  // One-time donation
     }
-    
+
     android.util.Log.d("MainActivity", "Calling PaymentViewModel.preparePayment()")
-    
+
     // Prepare payment
     paymentViewModel.preparePayment(
         amount = amount,

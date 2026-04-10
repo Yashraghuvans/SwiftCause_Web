@@ -7,6 +7,8 @@ import com.example.swiftcause.data.models.*
 import com.example.swiftcause.data.repository.PaymentRepository
 import com.google.firebase.firestore.FirebaseFirestore
 import com.stripe.android.paymentsheet.PaymentSheetResult
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -35,7 +37,12 @@ class PaymentViewModel(
     // Magic link token for QR code
     private val _magicLinkToken = MutableStateFlow<String?>(null)
     val magicLinkToken: StateFlow<String?> = _magicLinkToken.asStateFlow()
-    
+
+    private var amount: Long = 0
+    private var currency: String = ""
+    private var paymentIntentId: String = ""
+    private var magicLinkPollingJob: Job? = null
+
     private val firestore = FirebaseFirestore.getInstance()
 
     /**
@@ -54,6 +61,8 @@ class PaymentViewModel(
         isGiftAid: Boolean = false,  // Campaign has Gift Aid enabled
         kioskId: String? = null
     ) {
+        this.amount = amount
+        this.currency = currency
         viewModelScope.launch {
             try {
                 _paymentState.value = PaymentState.Loading
@@ -93,7 +102,7 @@ class PaymentViewModel(
                 )
 
                 Log.d(TAG, "Calling PaymentRepository.createPaymentIntent()")
-                
+
                 // Call backend to create payment intent
                 val result = paymentRepository.createPaymentIntent(request)
 
@@ -102,6 +111,7 @@ class PaymentViewModel(
                         Log.d(TAG, "Repository returned success")
                         if (response.clientSecret != null) {
                             _clientSecret.value = response.clientSecret
+                            paymentIntentId = response.clientSecret.substringBeforeLast("_secret_")
                             _paymentState.value = PaymentState.Ready
                             Log.d(TAG, "Payment prepared - State: Ready")
                             Log.d(TAG, "Client secret length: ${response.clientSecret.length}")
@@ -138,27 +148,30 @@ class PaymentViewModel(
     }
 
     /**
-     * Handles PaymentSheet result after user completes payment
+     * Handles the result of the PaymentSheet
      */
-    fun handlePaymentResult(result: PaymentSheetResult) {
-        when (result) {
-            is PaymentSheetResult.Completed -> {
-                Log.d(TAG, "Payment completed successfully")
-                _paymentState.value = PaymentState.Success(
-                    transactionId = _clientSecret.value ?: "",
-                    amount = 0, // Will be populated from campaign data
-                    currency = ""
-                )
-            }
-            is PaymentSheetResult.Canceled -> {
-                Log.d(TAG, "Payment cancelled by user")
-                _paymentState.value = PaymentState.Cancelled
-            }
-            is PaymentSheetResult.Failed -> {
-                Log.e(TAG, "Payment failed: ${result.error.message}")
-                _paymentState.value = PaymentState.Error(
-                    message = result.error.message ?: "Payment failed"
-                )
+    fun handlePaymentResult(result: PaymentSheetResult, onPaymentSuccess: () -> Unit) {
+        viewModelScope.launch {
+            when (result) {
+                is PaymentSheetResult.Completed -> {
+                    Log.d(TAG, "Payment completed")
+                    _paymentState.value = PaymentState.Success(
+                        transactionId = paymentIntentId,
+                        amount = amount,
+                        currency = currency
+                    )
+                    onPaymentSuccess()
+                }
+                is PaymentSheetResult.Canceled -> {
+                    Log.d(TAG, "Payment canceled")
+                    _paymentState.value = PaymentState.Cancelled
+                }
+                is PaymentSheetResult.Failed -> {
+                    Log.e(TAG, "Payment failed: ${result.error.message}")
+                    _paymentState.value = PaymentState.Error(
+                        message = result.error.message ?: "Payment failed"
+                    )
+                }
             }
         }
     }
@@ -170,37 +183,53 @@ class PaymentViewModel(
         _paymentState.value = PaymentState.Idle
         _clientSecret.value = null
         _magicLinkToken.value = null
+        this.amount = 0
+        this.currency = ""
+        this.paymentIntentId = ""
     }
-    
+
     /**
      * Fetches magic link token from Firestore ephemeral collection
      * Token is only available for 2 minutes after payment completion
      */
     fun fetchMagicLinkToken(paymentIntentId: String) {
-        viewModelScope.launch {
+        magicLinkPollingJob?.cancel()
+        magicLinkPollingJob = viewModelScope.launch {
             try {
                 Log.d(TAG, "Fetching magic link token for: $paymentIntentId")
-                
+
                 val docRef = firestore.collection("magicLinkEphemeral").document(paymentIntentId)
-                val snapshot = docRef.get().await()
-                
-                if (snapshot.exists()) {
-                    val plainToken = snapshot.getString("plainToken")
-                    val expiresAt = snapshot.getTimestamp("expiresAt")
-                    
-                    // Check if token is still valid (not expired)
-                    val now = com.google.firebase.Timestamp.now()
-                    if (plainToken != null && expiresAt != null && now < expiresAt) {
-                        _magicLinkToken.value = plainToken
-                        Log.d(TAG, "Magic link token fetched successfully")
-                    } else {
+                val maxAttempts = 20
+                val retryDelayMs = 1500L
+
+                repeat(maxAttempts) { attempt ->
+                    val snapshot = docRef.get().await()
+
+                    if (snapshot.exists()) {
+                        val plainToken = snapshot.getString("plainToken")
+                        val expiresAt = snapshot.getTimestamp("expiresAt")
+
+                        // Check if token is still valid (not expired)
+                        val now = com.google.firebase.Timestamp.now()
+                        if (plainToken != null && expiresAt != null && now < expiresAt) {
+                            _magicLinkToken.value = plainToken
+                            Log.d(TAG, "Magic link token fetched successfully on attempt ${attempt + 1}")
+                            return@launch
+                        }
+
                         Log.w(TAG, "Magic link token expired or invalid")
                         _magicLinkToken.value = null
+                        return@launch
                     }
-                } else {
-                    Log.d(TAG, "No magic link token found (may not be generated for this donation)")
-                    _magicLinkToken.value = null
+
+                    // Likely webhook race: token doc not written yet. Retry shortly.
+                    if (attempt < maxAttempts - 1) {
+                        delay(retryDelayMs)
+                    }
                 }
+
+                Log.w(TAG, "No magic link token found after retries (webhook may be delayed or token not generated)")
+                _magicLinkToken.value = null
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to fetch magic link token", e)
                 _magicLinkToken.value = null
@@ -216,16 +245,16 @@ sealed class PaymentState {
     object Idle : PaymentState()
     object Loading : PaymentState()
     object Ready : PaymentState()  // Payment intent created, ready to show PaymentSheet
-    
+
     data class Success(
         val transactionId: String,
         val amount: Long,
         val currency: String
     ) : PaymentState()
-    
+
     data class Error(
         val message: String
     ) : PaymentState()
-    
+
     object Cancelled : PaymentState()
 }
