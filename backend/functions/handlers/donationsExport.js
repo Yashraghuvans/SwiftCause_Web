@@ -158,12 +158,20 @@ const getCampaignDisplayName = (donation) => {
   return snapshotTitle || 'Deleted Campaign';
 };
 
+const sanitizeSpreadsheetFormula = (value) => {
+  if (typeof value !== 'string') return value;
+  if (/^[\t\r\n ]*[=+\-@]/.test(value)) {
+    return `'${value}`;
+  }
+  return value;
+};
+
 const escapeCsvValue = (value) => {
   if (value === undefined || value === null) {
     return '';
   }
 
-  const stringValue = String(value);
+  const stringValue = String(sanitizeSpreadsheetFormula(value));
   if (
     stringValue.includes('"') ||
     stringValue.includes(',') ||
