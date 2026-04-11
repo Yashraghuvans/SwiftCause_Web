@@ -6,6 +6,7 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -50,8 +51,15 @@ import coil.compose.SubcomposeAsyncImageContent
 import com.example.swiftcause.R
 import com.example.swiftcause.ui.components.SkeletonBox
 import com.example.swiftcause.domain.models.Campaign
-import com.example.swiftcause.ui.theme.PrimaryGreen
-import com.example.swiftcause.ui.theme.WarmWhite
+import com.example.swiftcause.ui.theme.PremiumBody
+import com.example.swiftcause.ui.theme.PremiumBorder
+import com.example.swiftcause.ui.theme.PremiumCardSurface
+import com.example.swiftcause.ui.theme.PremiumHeadline
+import com.example.swiftcause.ui.theme.PremiumPageBackground
+import com.example.swiftcause.ui.theme.PremiumPanelSurface
+import com.example.swiftcause.ui.theme.PremiumPrimary
+import com.example.swiftcause.ui.theme.PremiumPrimaryPressed
+import com.example.swiftcause.ui.theme.PremiumUnselectedFill
 import com.example.swiftcause.utils.CurrencyFormatter
 import kotlinx.coroutines.delay
 import coil.request.ImageRequest
@@ -107,7 +115,7 @@ fun CampaignDetailsScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .background(WarmWhite)
+                .background(PremiumPageBackground)
                 .verticalScroll(scrollState)
                 .padding(bottom = 340.dp)
         ) {
@@ -128,12 +136,12 @@ fun CampaignDetailsScreen(
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = stringResource(R.string.content_description_back_button),
-                            tint = PrimaryGreen,
+                            tint = PremiumPrimary,
                             modifier = Modifier.size(20.dp)
                         )
                         Text(
                             text = stringResource(R.string.back),
-                            color = PrimaryGreen,
+                            color = PremiumPrimary,
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Medium
                         )
@@ -163,8 +171,8 @@ fun CampaignDetailsScreen(
                 Text(
                     text = campaign.title,
                     fontSize = 22.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = Color(0xFF0F172A),
+                    fontWeight = FontWeight.Medium,
+                    color = PremiumHeadline,
                     lineHeight = 28.sp
                 )
 
@@ -173,7 +181,7 @@ fun CampaignDetailsScreen(
                     Text(
                         text = campaign.shortDescription,
                         fontSize = 14.sp,
-                        color = Color(0xFF334155),
+                        color = PremiumBody,
                         lineHeight = 20.sp
                     )
                 }
@@ -196,13 +204,13 @@ fun CampaignDetailsScreen(
                         .padding(horizontal = 16.dp, vertical = 8.dp),
                     fontSize = 15.sp,
                     fontWeight = FontWeight.SemiBold,
-                    color = PrimaryGreen
+                    color = PremiumPrimary
                 )
 
                 if (isLongDescriptionExpanded) {
                     RichTextContent(
                         htmlContent = campaign.longDescription,
-                        textColor = Color(0xFF334155),
+                        textColor = PremiumBody,
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 16.dp)
@@ -257,7 +265,7 @@ private fun ImageCarousel(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(280.dp),
-            shape = RoundedCornerShape(22.dp),
+            shape = RoundedCornerShape(10.dp),
             elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
         ) {
             Box {
@@ -311,7 +319,7 @@ private fun ImageCarousel(
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
                             contentDescription = stringResource(R.string.content_description_previous_image),
-                            tint = PrimaryGreen
+                            tint = PremiumPrimary
                         )
                     }
 
@@ -330,7 +338,7 @@ private fun ImageCarousel(
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
                             contentDescription = stringResource(R.string.content_description_next_image),
-                            tint = PrimaryGreen
+                            tint = PremiumPrimary
                         )
                     }
 
@@ -347,7 +355,7 @@ private fun ImageCarousel(
                                     .size(10.dp)
                                     .clip(CircleShape)
                                     .background(
-                                        if (index == currentIndex) PrimaryGreen
+                                        if (index == currentIndex) PremiumPrimary
                                         else Color.White.copy(alpha = 0.6f)
                                     )
                                     .clickable { onIndexChange(index) }
@@ -374,7 +382,8 @@ private fun ProgressSection(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .background(Color(0xFFF8FAFC), RoundedCornerShape(12.dp))
+            .background(PremiumCardSurface, RoundedCornerShape(12.dp))
+            .border(1.dp, PremiumBorder, RoundedCornerShape(12.dp))
             .padding(12.dp)
     ) {
         Row(
@@ -386,13 +395,13 @@ private fun ProgressSection(
                 text = stringResource(R.string.community_support),
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Medium,
-                color = Color(0xFF64748B)
+                color = PremiumBody
             )
             Text(
                 text = "${progress.toInt()}%",
                 fontSize = 15.sp,
                 fontWeight = FontWeight.SemiBold,
-                color = PrimaryGreen
+                color = PremiumPrimary
             )
         }
 
@@ -404,14 +413,14 @@ private fun ProgressSection(
                 .fillMaxWidth()
                 .height(8.dp)
                 .clip(RoundedCornerShape(4.dp))
-                .background(Color(0xFFE2E8F0))
+                .background(PremiumBorder)
         ) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth(animatedProgress)
                     .fillMaxHeight()
                     .clip(RoundedCornerShape(4.dp))
-                    .background(PrimaryGreen)
+                    .background(PremiumPrimary)
             )
         }
 
@@ -425,7 +434,7 @@ private fun ProgressSection(
             ),
             fontSize = 14.sp,
             fontWeight = FontWeight.Medium,
-            color = Color(0xFF334155)
+            color = PremiumBody
         )
     }
 }
@@ -455,12 +464,14 @@ private fun DonationPanel(
         modifier = modifier
             .fillMaxWidth()
             .shadow(
-                elevation = 0.dp,
-                shape = RoundedCornerShape(0.dp)
+                elevation = 10.dp,
+                shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp),
+                spotColor = Color.Black.copy(alpha = 0.08f)
             ),
-        shape = RoundedCornerShape(0.dp),
-        color = WarmWhite,
-        tonalElevation = 0.dp
+        shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp),
+        color = PremiumPanelSurface,
+        tonalElevation = 2.dp,
+        border = BorderStroke(1.dp, PremiumBorder)
     ) {
         Column(
             modifier = Modifier
@@ -471,9 +482,9 @@ private fun DonationPanel(
             // Amount label
             Text(
                 text = stringResource(R.string.choose_amount),
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Medium,
-                color = Color(0xFF64748B)
+                fontSize = 14.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = PremiumPrimary
             )
 
             Spacer(modifier = Modifier.height(12.dp))
@@ -533,28 +544,40 @@ private fun DonationPanel(
                         onCustomAmountChanged(it)
                     }
                 },
+                textStyle = LocalTextStyle.current.copy(
+                    fontSize = 16.sp,
+                    lineHeight = 20.sp,
+                    color = PremiumHeadline
+                ),
                 placeholder = {
                     Text(
                         text = stringResource(R.string.custom_amount),
-                        color = Color(0xFF9CA3AF)
+                        color = PremiumBody.copy(alpha = 0.75f),
+                        fontSize = 16.sp,
+                        lineHeight = 20.sp
                     )
                 },
-                prefix = {
+                leadingIcon = {
                     Text(
                         text = CurrencyFormatter.getCurrencySymbol(campaign.currency),
                         fontSize = 18.sp,
-                        color = Color(0xFF9CA3AF)
+                        fontWeight = FontWeight.SemiBold,
+                        color = PremiumBody
                     )
                 },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(52.dp),
+                    .height(56.dp),
                 shape = RoundedCornerShape(12.dp),
                 colors = OutlinedTextFieldDefaults.colors(
-                    unfocusedBorderColor = Color(0xFFE5E7EB),
-                    focusedBorderColor = PrimaryGreen,
-                    unfocusedContainerColor = WarmWhite,
-                    focusedContainerColor = WarmWhite
+                    unfocusedBorderColor = PremiumBorder,
+                    focusedBorderColor = PremiumPrimary,
+                    unfocusedContainerColor = PremiumCardSurface,
+                    focusedContainerColor = PremiumCardSurface,
+                    focusedLeadingIconColor = PremiumBody,
+                    unfocusedLeadingIconColor = PremiumBody,
+                    unfocusedTextColor = PremiumHeadline,
+                    focusedTextColor = PremiumHeadline
                 ),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 singleLine = true
@@ -573,16 +596,16 @@ private fun DonationPanel(
                         text = stringResource(R.string.make_recurring),
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Medium,
-                        color = Color(0xFF334155)
+                        color = PremiumHeadline
                     )
                     Switch(
                         checked = isRecurring,
                         onCheckedChange = onRecurringToggle,
                         colors = SwitchDefaults.colors(
                             checkedThumbColor = Color.White,
-                            checkedTrackColor = PrimaryGreen,
+                            checkedTrackColor = PremiumPrimary,
                             uncheckedThumbColor = Color.White,
-                            uncheckedTrackColor = Color(0xFFD1D5DB)
+                            uncheckedTrackColor = PremiumBorder
                         )
                     )
                 }
@@ -625,14 +648,19 @@ private fun DonationPanel(
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = PrimaryGreen,
-                            focusedLabelColor = PrimaryGreen
+                            focusedBorderColor = PremiumPrimary,
+                            focusedLabelColor = PremiumPrimary,
+                            unfocusedBorderColor = PremiumBorder,
+                            unfocusedContainerColor = PremiumCardSurface,
+                            focusedContainerColor = PremiumCardSurface,
+                            unfocusedTextColor = PremiumHeadline,
+                            focusedTextColor = PremiumHeadline
                         )
                     )
                     Text(
                         text = "We need your email to send you subscription management links",
                         fontSize = 12.sp,
-                        color = Color(0xFF64748B),
+                        color = PremiumBody,
                         modifier = Modifier.padding(top = 4.dp)
                     )
                 }
@@ -652,11 +680,11 @@ private fun AmountButton(
     modifier: Modifier = Modifier
 ) {
     val backgroundColor by animateColorAsState(
-        targetValue = if (isSelected) PrimaryGreen else Color(0xFFEAF7F0),
+        targetValue = if (isSelected) PremiumPrimaryPressed else PremiumPrimary,
         label = "bg"
     )
     val textColor by animateColorAsState(
-        targetValue = if (isSelected) Color.White else PrimaryGreen,
+        targetValue = Color.White,
         label = "text"
     )
     val scale by animateFloatAsState(
@@ -672,8 +700,8 @@ private fun AmountButton(
             .clip(RoundedCornerShape(12.dp))
             .background(backgroundColor)
             .border(
-                width = if (isSelected) 0.dp else 1.dp,
-                color = if (isSelected) Color.Transparent else PrimaryGreen.copy(alpha = 0.22f),
+                width = if (isSelected) 2.dp else 0.dp,
+                color = if (isSelected) PremiumPrimary else Color.Transparent,
                 shape = RoundedCornerShape(12.dp)
             )
             .clickable { onClick() }
@@ -697,11 +725,11 @@ private fun IntervalButton(
     modifier: Modifier = Modifier
 ) {
     val backgroundColor by animateColorAsState(
-        targetValue = if (isSelected) PrimaryGreen else Color.White,
+        targetValue = if (isSelected) PremiumPrimary else PremiumCardSurface,
         label = "bg"
     )
     val textColor by animateColorAsState(
-        targetValue = if (isSelected) Color.White else Color(0xFF334155),
+        targetValue = if (isSelected) Color.White else PremiumBody,
         label = "text"
     )
 
@@ -712,7 +740,7 @@ private fun IntervalButton(
             .background(backgroundColor)
             .border(
                 width = if (isSelected) 0.dp else 1.dp,
-                color = if (isSelected) Color.Transparent else Color(0xFFE5E7EB),
+                color = if (isSelected) Color.Transparent else PremiumBorder,
                 shape = RoundedCornerShape(8.dp)
             )
             .clickable { onClick() },
@@ -1003,7 +1031,7 @@ private fun RenderHtmlContent(
                 }
                 text = spanned
 
-                setLinkTextColor(PrimaryGreen.toArgb())
+                setLinkTextColor(PremiumPrimary.toArgb())
                 movementMethod = android.text.method.LinkMovementMethod.getInstance()
             }
         },

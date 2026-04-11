@@ -25,15 +25,15 @@ private val DarkColorScheme = darkColorScheme(
 )
 
 private val LightColorScheme = lightColorScheme(
-    primary = PrimaryGreen,
-    secondary = AccentGreen,
+    primary = PremiumPrimary,
+    secondary = PremiumPrimaryPressed,
     tertiary = ProgressGreen,
-    background = BackgroundGray,
-    surface = CardBackground,
+    background = PremiumPageBackground,
+    surface = PremiumPanelSurface,
     onPrimary = Color.White,
     onSecondary = Color.White,
-    onBackground = TextPrimary,
-    onSurface = TextPrimary
+    onBackground = PremiumHeadline,
+    onSurface = PremiumHeadline
 )
 
 @Composable
