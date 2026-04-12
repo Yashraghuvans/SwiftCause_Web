@@ -326,7 +326,7 @@ fun KioskMainContent(
                     }
                 )
             }
-            uiState.isLoading -> {
+            uiState.isLoading && uiState.campaigns.isEmpty() -> {
                 Box(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
@@ -345,7 +345,7 @@ fun KioskMainContent(
             else -> {
                 CampaignListScreen(
                     campaigns = uiState.campaigns,
-                    isLoading = false,
+                    isLoading = uiState.isLoading,
                     onCampaignClick = { campaign ->
                         viewModel.selectCampaign(campaign)
                     }

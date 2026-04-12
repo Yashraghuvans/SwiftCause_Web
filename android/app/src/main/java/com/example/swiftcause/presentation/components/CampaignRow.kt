@@ -20,9 +20,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.AsyncImage
+import coil.compose.SubcomposeAsyncImage
+import coil.compose.SubcomposeAsyncImageContent
 import coil.request.ImageRequest
 import com.example.swiftcause.domain.models.Campaign
+import com.example.swiftcause.ui.components.SkeletonBox
 
 @Composable
 fun CampaignRow(
@@ -42,7 +44,7 @@ fun CampaignRow(
             modifier = Modifier.height(120.dp), // Reduced height by 25%
             verticalAlignment = Alignment.CenterVertically
         ) {
-            AsyncImage(
+            SubcomposeAsyncImage(
                 model = ImageRequest.Builder(LocalContext.current)
                     .data(campaign.coverImageUrl)
                     .crossfade(true)
@@ -53,7 +55,18 @@ fun CampaignRow(
                     .fillMaxHeight()
                     .width(150.dp)
                     .clip(RoundedCornerShape(topStart = 8.dp, bottomStart = 8.dp)) // Match card rounding
-            )
+            ) {
+                if (painter.state is coil.compose.AsyncImagePainter.State.Loading ||
+                    painter.state is coil.compose.AsyncImagePainter.State.Empty
+                ) {
+                    SkeletonBox(
+                        modifier = Modifier.fillMaxSize(),
+                        shape = RoundedCornerShape(topStart = 8.dp, bottomStart = 8.dp)
+                    )
+                } else {
+                    SubcomposeAsyncImageContent()
+                }
+            }
 
             Column(
                 modifier = Modifier

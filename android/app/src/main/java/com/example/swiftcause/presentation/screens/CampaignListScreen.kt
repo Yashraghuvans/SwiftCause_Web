@@ -4,6 +4,12 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -12,6 +18,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -37,6 +45,30 @@ fun CampaignListScreen(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val refreshingInBackground = isLoading && campaigns.isNotEmpty()
+    val logoTransition = rememberInfiniteTransition(label = "logo-refresh")
+    val logoPulseScale = if (refreshingInBackground) {
+        logoTransition.animateFloat(
+            initialValue = 1f,
+            targetValue = 1.06f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMillis = 900, easing = LinearEasing),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "logo-scale"
+        ).value
+    } else 1f
+    val logoPulseAlpha = if (refreshingInBackground) {
+        logoTransition.animateFloat(
+            initialValue = 0.85f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMillis = 900, easing = LinearEasing),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "logo-alpha"
+        ).value
+    } else 1f
 
     // Prefetch cover images into shared Coil memory/disk cache once campaigns are loaded.
     LaunchedEffect(campaigns.map { it.id to it.coverImageUrl }) {
@@ -71,7 +103,10 @@ fun CampaignListScreen(
                     Image(
                         painter = painterResource(id = R.drawable.ic_swiftcause_logo),
                         contentDescription = "SwiftCause Logo",
-                        modifier = Modifier.size(24.dp), // Further reduced logo size
+                        modifier = Modifier
+                            .size(24.dp)
+                            .scale(logoPulseScale)
+                            .alpha(logoPulseAlpha),
                         colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.primary)
                     )
                     Text(
