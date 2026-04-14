@@ -3,6 +3,10 @@ import { FUNCTION_URLS } from '@/shared/config/functions';
 
 export interface KioskExportRequest {
   organizationId: string;
+  filters?: {
+    searchTerm?: string;
+    status?: 'all' | 'online' | 'offline' | 'maintenance';
+  };
 }
 
 const getCurrentUserToken = async () => {
