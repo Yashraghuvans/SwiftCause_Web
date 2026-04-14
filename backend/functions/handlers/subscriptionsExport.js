@@ -175,6 +175,36 @@ const getSubscriptionDisplayInterval = (subscription) => {
   return 'Monthly';
 };
 
+const normalizeExportFilters = (rawFilters) => {
+  const filters = rawFilters && typeof rawFilters === 'object' ? rawFilters : {};
+  const searchTerm = typeof filters.searchTerm === 'string' ? filters.searchTerm.trim() : '';
+  const status = typeof filters.status === 'string' ? filters.status.trim() : 'all';
+  const interval = typeof filters.interval === 'string' ? filters.interval.trim() : 'all';
+
+  return {
+    searchTerm: searchTerm.toLowerCase(),
+    status: status || 'all',
+    interval: interval.toLowerCase() || 'all',
+  };
+};
+
+const subscriptionMatchesFilters = (subscription, filters) => {
+  const donorName = String(subscription?.metadata?.donorName || 'Anonymous').toLowerCase();
+  const donorEmail = String(subscription?.metadata?.donorEmail || '').toLowerCase();
+  const stripeSubscriptionId = String(subscription?.stripeSubscriptionId || '').toLowerCase();
+  const intervalLabel = getSubscriptionDisplayInterval(subscription).toLowerCase();
+
+  const matchesSearch =
+    !filters.searchTerm ||
+    donorName.includes(filters.searchTerm) ||
+    donorEmail.includes(filters.searchTerm) ||
+    stripeSubscriptionId.includes(filters.searchTerm);
+  const matchesStatus = filters.status === 'all' || subscription.status === filters.status;
+  const matchesInterval = filters.interval === 'all' || intervalLabel === filters.interval;
+
+  return matchesSearch && matchesStatus && matchesInterval;
+};
+
 const EXPORT_HEADERS = [
   'donorName',
   'donorEmail',
@@ -203,6 +233,7 @@ const exportSubscriptions = (req, res) => {
       await ensureSubscriptionExportAccess(auth, organizationId);
 
       const range = typeof req.body?.range === 'string' ? req.body.range : '';
+      const requestedFilters = normalizeExportFilters(req.body?.filters);
       const { start, end } = resolveDateRange({
         range,
         startDate: req.body?.startDate,
@@ -220,7 +251,8 @@ const exportSubscriptions = (req, res) => {
       const filtered = subscriptions.filter((subscription) => {
         const createdAt = asDate(subscription.createdAt);
         if (!createdAt) return false;
-        return createdAt >= start && createdAt <= end;
+        if (createdAt < start || createdAt > end) return false;
+        return subscriptionMatchesFilters(subscription, requestedFilters);
       });
 
       const rows = filtered.map((subscription) => {
