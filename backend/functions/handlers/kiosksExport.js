@@ -100,6 +100,29 @@ const buildTimestampToken = (date) => {
   return `${year}${month}${day}-${hours}${minutes}${seconds}Z`;
 };
 
+const normalizeExportFilters = (rawFilters) => {
+  const filters = rawFilters && typeof rawFilters === 'object' ? rawFilters : {};
+  const searchTerm = typeof filters.searchTerm === 'string' ? filters.searchTerm.trim() : '';
+  const status = typeof filters.status === 'string' ? filters.status.trim() : 'all';
+
+  return {
+    searchTerm: searchTerm.toLowerCase(),
+    status: status || 'all',
+  };
+};
+
+const kioskMatchesFilters = (kiosk, filters) => {
+  const matchesStatus = filters.status === 'all' || kiosk.status === filters.status;
+  const matchesSearch =
+    !filters.searchTerm ||
+    (typeof kiosk.name === 'string' && kiosk.name.toLowerCase().includes(filters.searchTerm)) ||
+    (typeof kiosk.location === 'string' &&
+      kiosk.location.toLowerCase().includes(filters.searchTerm)) ||
+    (typeof kiosk.id === 'string' && kiosk.id.toLowerCase().includes(filters.searchTerm));
+
+  return matchesStatus && matchesSearch;
+};
+
 const buildKioskPerformanceMap = (donations) => {
   const map = new Map();
 
@@ -144,10 +167,20 @@ const exportKiosks = (req, res) => {
       const auth = await verifyAuth(req);
       const organizationId =
         typeof req.body?.organizationId === 'string' ? req.body.organizationId.trim() : '';
+      const requestedFilters = normalizeExportFilters(req.body?.filters);
       await ensureKioskExportAccess(auth, organizationId);
 
+      const kiosksQuery = admin
+        .firestore()
+        .collection('kiosks')
+        .where('organizationId', '==', organizationId);
+      const kiosksSnapshotPromise =
+        requestedFilters.status && requestedFilters.status !== 'all'
+          ? kiosksQuery.where('status', '==', requestedFilters.status).get()
+          : kiosksQuery.get();
+
       const [kiosksSnapshot, donationsSnapshot] = await Promise.all([
-        admin.firestore().collection('kiosks').where('organizationId', '==', organizationId).get(),
+        kiosksSnapshotPromise,
         admin
           .firestore()
           .collection('donations')
@@ -155,7 +188,9 @@ const exportKiosks = (req, res) => {
           .get(),
       ]);
 
-      const kiosks = kiosksSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+      const kiosks = kiosksSnapshot.docs
+        .map((doc) => ({ id: doc.id, ...doc.data() }))
+        .filter((kiosk) => kioskMatchesFilters(kiosk, requestedFilters));
       const donations = donationsSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
       const performanceMap = buildKioskPerformanceMap(donations);
 
