@@ -31,6 +31,7 @@ const {
 } = require('./handlers/payments');
 const { exportGiftAidDeclarations, downloadGiftAidExportBatchFile } = require('./handlers/giftAid');
 const { exportDonations } = require('./handlers/donationsExport');
+const { exportKiosks } = require('./handlers/kiosksExport');
 const {
   createRecurringSubscription,
   cancelRecurringSubscription,
@@ -124,6 +125,7 @@ exports.createExpressDashboardLink = functions.https.onRequest(
 exports.exportGiftAidDeclarations = functions.https.onRequest(exportGiftAidDeclarations);
 exports.downloadGiftAidExportBatchFile = functions.https.onRequest(downloadGiftAidExportBatchFile);
 exports.exportDonations = functions.https.onRequest(exportDonations);
+exports.exportKiosks = functions.https.onRequest(exportKiosks);
 exports.createRecurringSubscription = functions.https.onRequest(
   { secrets: [stripeSecretKey] },
   createRecurringSubscription,
@@ -137,8 +139,8 @@ exports.updateSubscriptionPaymentMethod = functions.https.onRequest(
   updateSubscriptionPaymentMethod,
 );
 exports.createConnectionToken = functions.https.onRequest(
-    {secrets: [stripeSecretKey]},
-    createConnectionToken,
+  { secrets: [stripeSecretKey] },
+  createConnectionToken,
 );
 exports.createStripeAccountForNewOrg = createStripeAccountForNewOrg;
 exports.sendWelcomeEmailForNewOrg = sendWelcomeEmailForNewOrg;
