@@ -275,6 +275,11 @@ export function SubscriptionManagement({
         range: exportRange,
         startDate: exportRange === 'custom' ? exportStartDate : undefined,
         endDate: exportRange === 'custom' ? exportEndDate : undefined,
+        filters: {
+          searchTerm,
+          status: statusFilter,
+          interval: intervalFilter,
+        },
       });
       setIsMobileExportMenuOpen(false);
       showToast('Subscription export started. Your download should begin shortly.', 'success');
