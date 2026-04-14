@@ -449,15 +449,6 @@ export function SubscriptionManagement({
               </div>
             </>
           ) : null}
-          <Button
-            variant="outline"
-            size="sm"
-            className="rounded-2xl border-[#064e3b] bg-transparent text-[#064e3b] hover:bg-emerald-50 hover:border-emerald-600 hover:shadow-md hover:shadow-emerald-900/10 hover:scale-105 transition-all duration-300 px-5"
-            onClick={loadSubscriptions}
-          >
-            <RefreshCw className="h-4 w-4 sm:hidden" />
-            <span className="hidden sm:inline">Refresh</span>
-          </Button>
         </div>
       }
     >
