@@ -2459,7 +2459,7 @@ const CampaignManagement = ({
                       const donationCount = Number(campaign.donationCount) || 0;
                       const progress =
                         goalAmount > 0
-                          ? Math.min(((raisedAmount / 100) / goalAmount) * 100, 100)
+                          ? ((raisedAmount / 100) / goalAmount) * 100
                           : 0;
 
                       return (
