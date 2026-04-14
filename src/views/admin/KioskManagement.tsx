@@ -372,6 +372,10 @@ export function KioskManagement({
     try {
       await exportKiosks({
         organizationId: userSession.user.organizationId,
+        filters: {
+          searchTerm,
+          status: statusFilter,
+        },
       });
       showToast('Kiosk export started. Your download should begin shortly.', 'success');
     } catch (exportError) {
