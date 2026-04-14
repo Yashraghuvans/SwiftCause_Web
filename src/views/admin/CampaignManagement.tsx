@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unused-vars, @typescript-eslint/no-explicit-any */
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { Screen, AdminSession, Permission, Kiosk } from '../../shared/types';
 import { DEFAULT_CAMPAIGN_CONFIG } from '../../shared/config';
@@ -24,28 +23,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from '../../shared/ui/dialog';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '../../shared/ui/select';
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-} from '../../shared/ui/command';
 import { Badge } from '../../shared/ui/badge';
-import { X, Check, ChevronsUpDown, Trash2, Save } from 'lucide-react';
-import {
-  FaEdit,
-  FaUpload,
-  FaImage,
-  FaTrashAlt, // Added FaTrashAlt
-} from 'react-icons/fa';
+import { X, Save } from 'lucide-react';
+import { FaEdit, FaTrashAlt } from 'react-icons/fa';
 import {
   Plus,
   RefreshCw,
@@ -58,34 +38,13 @@ import {
   Download,
   Building2,
 } from 'lucide-react';
-import { Calendar } from '../../shared/ui/calendar';
-import { Popover, PopoverContent, PopoverTrigger } from '../../shared/ui/popover';
 import { AlertTriangle } from 'lucide-react'; // Import AlertTriangle
 import { Skeleton } from '../../shared/ui/skeleton';
 import { Ghost } from 'lucide-react';
 import { ImageWithFallback } from '../../shared/ui/figma/ImageWithFallback';
-
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from '../../shared/ui/alert-dialog';
 import { AdminLayout } from './AdminLayout';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../shared/ui/card';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '../../shared/ui/table';
+import { Card, CardContent } from '../../shared/ui/card';
+import { Table, TableBody, TableCell, TableHeader, TableRow } from '../../shared/ui/table';
 import { useOrganization } from '../../shared/lib/hooks/useOrganization';
 import { useStripeOnboarding, StripeOnboardingDialog } from '../../features/stripe-onboarding';
 import {
@@ -104,6 +63,7 @@ import { CampaignForm, CampaignFormData } from './components/CampaignForm';
 import { Campaign } from '../../shared/types';
 import { exportCampaigns } from '../../entities/campaign/api';
 import { useToast } from '../../shared/ui/ToastProvider';
+import type { CampaignSaveData } from '../../shared/lib/hooks/useCampaignManagement';
 
 interface CampaignDialogProps {
   open: boolean;
@@ -112,6 +72,59 @@ interface CampaignDialogProps {
   organizationId: string; // Add organizationId prop
   onSave: (data: DocumentData, isNew: boolean, campaignId?: string) => Promise<void>;
 }
+
+type CampaignDialogTab = 'basic' | 'media-gallery' | 'funding-details' | 'kiosk-distribution';
+type UnknownRecord = Record<string, unknown>;
+type TimestampLike = { seconds: number; nanoseconds?: number; toDate?: () => Date };
+
+const isTimestampLike = (value: unknown): value is TimestampLike => {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'seconds' in value &&
+    typeof (value as { seconds?: unknown }).seconds === 'number'
+  );
+};
+
+const toDateInputValue = (value: unknown): string => {
+  if (!value) return '';
+
+  if (isTimestampLike(value)) {
+    return new Date(value.seconds * 1000).toISOString().split('T')[0];
+  }
+
+  if (value instanceof Date) {
+    return value.toISOString().split('T')[0];
+  }
+
+  if (typeof value === 'string') {
+    const parsed = new Date(value);
+    if (!Number.isNaN(parsed.getTime())) {
+      return parsed.toISOString().split('T')[0];
+    }
+  }
+
+  return '';
+};
+
+const toDateValue = (value: unknown): Date | null => {
+  if (!value) return null;
+
+  if (isTimestampLike(value)) {
+    return new Date(value.seconds * 1000);
+  }
+
+  if (value instanceof Date) {
+    return value;
+  }
+
+  if (typeof value === 'string') {
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+
+  return null;
+};
 
 const getInitialFormData = () => ({
   title: '',
@@ -186,9 +199,7 @@ const CampaignDialog = ({
   onSave,
 }: CampaignDialogProps) => {
   const [formData, setFormData] = useState<DocumentData>(getInitialFormData());
-  const [activeTab, setActiveTab] = useState<
-    'basic' | 'media-gallery' | 'funding-details' | 'kiosk-distribution'
-  >('basic');
+  const [activeTab, setActiveTab] = useState<CampaignDialogTab>('basic');
   const [kiosks, setKiosks] = useState<Kiosk[]>([]);
   const [loadingKiosks, setLoadingKiosks] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -236,7 +247,7 @@ const CampaignDialog = ({
         }
       });
 
-      setActiveTab(closestSection as any);
+      setActiveTab(closestSection as CampaignDialogTab);
     };
 
     container.addEventListener('scroll', handleScroll, { passive: true });
@@ -263,7 +274,6 @@ const CampaignDialog = ({
     fetchKiosks();
   }, [open, organizationId]);
 
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const isEditMode = !!campaign;
 
   const {
@@ -284,18 +294,11 @@ const CampaignDialog = ({
 
   // Tags dropdown state
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
-  const [tagSearchOpen, setTagSearchOpen] = useState(false);
-  const [tagSearchValue, setTagSearchValue] = useState('');
-
   // New state for advanced image uploads
   const [selectedOrganizationLogo, setSelectedOrganizationLogo] = useState<File | null>(null);
-  const [organizationLogoPreview, setOrganizationLogoPreview] = useState<string | null>(null);
   // New state for gallery image uploads
   const [selectedGalleryImages, setSelectedGalleryImages] = useState<File[]>([]);
   const [galleryImagePreviews, setGalleryImagePreviews] = useState<string[]>([]);
-
-  // New states for specific image upload loading
-  const [isUploadingOrganizationLogo, setIsUploadingOrganizationLogo] = useState(false);
   // Loading state for the dialog submit (create/save)
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -307,12 +310,8 @@ const CampaignDialog = ({
         status: campaign.status || 'active',
         goal: campaign.goal || 0,
         tags: Array.isArray(campaign.tags) ? campaign.tags.join(', ') : '',
-        startDate: campaign.startDate?.seconds
-          ? new Date(campaign.startDate.seconds * 1000).toISOString().split('T')[0]
-          : '',
-        endDate: campaign.endDate?.seconds
-          ? new Date(campaign.endDate.seconds * 1000).toISOString().split('T')[0]
-          : '',
+        startDate: toDateInputValue(campaign.startDate),
+        endDate: toDateInputValue(campaign.endDate),
         coverImageUrl: campaign.coverImageUrl || '',
 
         // New fields for advanced settings (initial subset)
@@ -388,9 +387,6 @@ const CampaignDialog = ({
       setSelectedTags(Array.isArray(campaign.tags) ? campaign.tags : []);
       setImagePreviewUrl(campaign.coverImageUrl || null);
       // Set initial previews for advanced images
-      if (campaign.organizationInfo?.logo) {
-        setOrganizationLogoPreview(campaign.organizationInfo.logo);
-      }
       // Set initial previews for gallery images
       if (Array.isArray(campaign.galleryImages) && campaign.galleryImages.length > 0) {
         setGalleryImagePreviews(campaign.galleryImages);
@@ -403,7 +399,6 @@ const CampaignDialog = ({
       clearGallerySelection(); // Clear the hook's gallery state
       // Clear advanced image selections/previews for add mode
       setSelectedOrganizationLogo(null);
-      setOrganizationLogoPreview(null);
       // Clear gallery image selections/previews for add mode
       setSelectedGalleryImages([]);
       setGalleryImagePreviews([]);
@@ -443,9 +438,6 @@ const CampaignDialog = ({
       } else if (inputName === 'organizationInfoLogo') {
         const file = files[0];
         setSelectedOrganizationLogo(file);
-        const reader = new FileReader();
-        reader.onload = (e) => setOrganizationLogoPreview(e.target?.result as string);
-        reader.readAsDataURL(file);
       } else if (inputName === 'galleryImages') {
         const newFiles = Array.from(files);
 
@@ -462,27 +454,6 @@ const CampaignDialog = ({
             setGalleryImagePreviews((prev) => [...prev, e.target?.result as string]);
           reader.readAsDataURL(file);
         });
-      }
-    }
-  };
-
-  const handleOrganizationLogoUpload = async () => {
-    if (selectedOrganizationLogo) {
-      setIsUploadingOrganizationLogo(true); // Set loading state
-      try {
-        const url = await uploadFile(
-          selectedOrganizationLogo,
-          `campaigns/${campaign?.id || 'new'}/organizationLogo/${selectedOrganizationLogo.name}`,
-        );
-        if (url) {
-          setFormData((prev) => ({ ...prev, organizationInfoLogo: url }));
-          setOrganizationLogoPreview(url);
-        }
-      } catch (error) {
-        console.error('Error uploading organization logo:', error);
-        alert('Failed to upload organization logo. Please try again.');
-      } finally {
-        setIsUploadingOrganizationLogo(false); // Reset loading state
       }
     }
   };
@@ -552,7 +523,7 @@ const CampaignDialog = ({
     // Upload cover image if a new one was selected
     if (selectedImage) {
       try {
-        const uploadedData = await handleImageUpload(campaign?.id, finalData as any);
+        const uploadedData = await handleImageUpload(campaign?.id, finalData as CampaignSaveData);
         if (uploadedData?.coverImageUrl) {
           finalData = { ...finalData, coverImageUrl: uploadedData.coverImageUrl };
           setImagePreviewUrl(uploadedData.coverImageUrl);
@@ -627,11 +598,8 @@ const CampaignDialog = ({
     setFormData(getInitialFormData()); // Reset for add mode
     // Clear tags
     setSelectedTags([]);
-    setTagSearchValue('');
-    setTagSearchOpen(false);
     // Clear advanced image selections/previews
     setSelectedOrganizationLogo(null);
-    setOrganizationLogoPreview(null);
     setSelectedGalleryImages([]);
     setGalleryImagePreviews([]);
   };
@@ -645,7 +613,6 @@ const CampaignDialog = ({
   const dialogDescription = isEditMode
     ? "Make changes to your campaign below. Click save when you're done."
     : 'Fill in the details below to create a new campaign.';
-  const saveButtonText = isEditMode ? 'Save Changes' : 'Create Campaign';
   const isSaveDisabled = uploadingImage || !formData.title || !formData.description;
 
   return (
@@ -1355,26 +1322,17 @@ const CampaignManagement = ({
   const [dateRange, setDateRange] = useState('all');
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [campaignToDelete, setCampaignToDelete] = useState<DocumentData | null>(null);
-  const [confirmDeleteInput, setConfirmDeleteInput] = useState('');
   const [isDeleting, setIsDeleting] = useState(false);
 
   // Error dialog state
   const [errorDialogOpen, setErrorDialogOpen] = useState(false);
   const [errorDialogMessage, setErrorDialogMessage] = useState('');
 
-  const {
-    campaigns: allCampaigns,
-    updateWithImage,
-    createWithImage,
-    remove,
-    loading,
-    uploadFile,
-    refresh,
-  } = useCampaignManagement(userSession.user.organizationId || '');
+  const { updateWithImage, createWithImage, remove, loading, uploadFile, refresh } =
+    useCampaignManagement(userSession.user.organizationId || '');
 
   const {
     campaigns,
-    loading: pagedLoading,
     fetching,
     pageNumber,
     canGoNext,
@@ -1394,7 +1352,7 @@ const CampaignManagement = ({
   const { organization, loading: orgLoading } = useOrganization(
     userSession.user.organizationId ?? null,
   );
-  const { isStripeOnboarded, needsOnboarding } = useStripeOnboarding(organization);
+  useStripeOnboarding(organization);
   const [showOnboardingDialog, setShowOnboardingDialog] = useState(false);
 
   const handleDeleteClick = (campaign: DocumentData) => {
@@ -1420,33 +1378,36 @@ const CampaignManagement = ({
     }
   };
 
-  // Helper function to remove undefined properties from an object
-  const removeUndefined = (obj: any): any => {
-    if (obj === null || typeof obj !== 'object') {
-      return obj;
+  const stripUndefined = (value: unknown): unknown => {
+    if (value === null || typeof value !== 'object') {
+      return value;
     }
 
-    if (Array.isArray(obj)) {
-      return obj.map(removeUndefined).filter((item) => item !== undefined);
+    if (Array.isArray(value)) {
+      return value.map(stripUndefined).filter((item) => item !== undefined);
     }
 
-    const newObj: any = {};
-    for (const key in obj) {
-      if (Object.prototype.hasOwnProperty.call(obj, key)) {
-        const value = obj[key];
-        if (value !== undefined) {
-          const processedValue = removeUndefined(value);
-          if (processedValue !== undefined) {
-            newObj[key] = processedValue;
-          }
-        }
+    const source = value as UnknownRecord;
+    const cleaned: UnknownRecord = {};
+    for (const [key, nestedValue] of Object.entries(source)) {
+      if (nestedValue === undefined) continue;
+      const processed = stripUndefined(nestedValue);
+      if (processed !== undefined) {
+        cleaned[key] = processed;
       }
     }
-    // If all properties of an object are undefined, return undefined so it can be removed from parent.
-    if (Object.keys(newObj).length === 0 && Object.keys(obj).length > 0) {
+
+    if (Object.keys(cleaned).length === 0 && Object.keys(source).length > 0) {
       return undefined;
     }
-    return newObj;
+
+    return cleaned;
+  };
+
+  // Helper function to remove undefined properties while preserving the input type.
+  const removeUndefined = <T extends UnknownRecord>(obj: T): T => {
+    const cleaned = stripUndefined(obj);
+    return (cleaned && typeof cleaned === 'object' ? cleaned : {}) as unknown as T;
   };
 
   const handleEditClick = (campaign: DocumentData) => {
@@ -1463,12 +1424,8 @@ const CampaignManagement = ({
       predefinedAmounts: Array.isArray(campaign.configuration?.predefinedAmounts)
         ? campaign.configuration.predefinedAmounts.slice(0, 3)
         : [25, 50, 100],
-      startDate: campaign.startDate?.seconds
-        ? new Date(campaign.startDate.seconds * 1000).toISOString().split('T')[0]
-        : '',
-      endDate: campaign.endDate?.seconds
-        ? new Date(campaign.endDate.seconds * 1000).toISOString().split('T')[0]
-        : '',
+      startDate: toDateInputValue(campaign.startDate),
+      endDate: toDateInputValue(campaign.endDate),
       enableRecurring:
         campaign.configuration?.enableRecurring ?? DEFAULT_CAMPAIGN_CONFIG.enableRecurring,
       recurringIntervals: Array.isArray(campaign.configuration?.recurringIntervals)
@@ -1523,7 +1480,7 @@ const CampaignManagement = ({
 
   const handleSave = async (data: DocumentData, isNew: boolean, campaignId?: string) => {
     try {
-      const dataToSave: { [key: string]: any } = {
+      const dataToSave: UnknownRecord = {
         title: data.title,
         description: data.description,
         status: data.status,
@@ -1611,11 +1568,8 @@ const CampaignManagement = ({
 
       const finalDataToSave = removeUndefined(dataToSave);
 
-      let savedCampaignId = campaignId;
-
       if (isNew) {
-        const newCampaign = await createWithImage(finalDataToSave);
-        savedCampaignId = newCampaign.id;
+        const newCampaign = await createWithImage(finalDataToSave as Omit<Campaign, 'id'>);
 
         try {
           await syncKiosksForCampaign(
@@ -1627,7 +1581,7 @@ const CampaignManagement = ({
           console.error('Kiosk sync failed after campaign create (campaign was saved):', syncError);
         }
       } else if (campaignId) {
-        await updateWithImage(campaignId, finalDataToSave);
+        await updateWithImage(campaignId, finalDataToSave as Partial<Campaign>);
 
         const oldAssignedKiosks = normalizeAssignments(editingCampaign?.assignedKiosks);
         try {
@@ -1704,7 +1658,7 @@ const CampaignManagement = ({
         }
       }
 
-      const dataToSave: { [key: string]: any } = {
+      const dataToSave: UnknownRecord = {
         title: newCampaignFormData.title,
         description: newCampaignFormData.briefOverview,
         longDescription: newCampaignFormData.description,
@@ -1737,7 +1691,7 @@ const CampaignManagement = ({
       }
 
       const finalDataToSave = removeUndefined(dataToSave);
-      const newCampaign = await createWithImage(finalDataToSave);
+      const newCampaign = await createWithImage(finalDataToSave as Omit<Campaign, 'id'>);
 
       try {
         await syncKiosksForCampaign(
@@ -1864,7 +1818,7 @@ const CampaignManagement = ({
         }
       }
 
-      const dataToSave: { [key: string]: any } = {
+      const dataToSave: UnknownRecord = {
         title: newCampaignFormData.title,
         description: newCampaignFormData.briefOverview,
         longDescription: newCampaignFormData.description,
@@ -1897,7 +1851,7 @@ const CampaignManagement = ({
       }
 
       const finalDataToSave = removeUndefined(dataToSave);
-      const newCampaign = await createWithImage(finalDataToSave);
+      const newCampaign = await createWithImage(finalDataToSave as Omit<Campaign, 'id'>);
 
       try {
         await syncKiosksForCampaign(
@@ -1983,7 +1937,7 @@ const CampaignManagement = ({
         }
       }
 
-      const dataToSave: { [key: string]: any } = {
+      const dataToSave: UnknownRecord = {
         title: editCampaignFormData.title,
         description: editCampaignFormData.briefOverview,
         longDescription: editCampaignFormData.description,
@@ -2016,7 +1970,7 @@ const CampaignManagement = ({
       }
 
       const finalDataToSave = removeUndefined(dataToSave);
-      await updateWithImage(editingCampaignForNewForm.id, finalDataToSave);
+      await updateWithImage(editingCampaignForNewForm.id, finalDataToSave as Partial<Campaign>);
 
       try {
         await syncKiosksForCampaign(
@@ -2117,7 +2071,7 @@ const CampaignManagement = ({
         }
       }
 
-      const dataToSave: { [key: string]: any } = {
+      const dataToSave: UnknownRecord = {
         title: editCampaignFormData.title,
         description: editCampaignFormData.briefOverview,
         longDescription: editCampaignFormData.description,
@@ -2150,7 +2104,7 @@ const CampaignManagement = ({
       }
 
       const finalDataToSave = removeUndefined(dataToSave);
-      await updateWithImage(editingCampaignForNewForm.id, finalDataToSave);
+      await updateWithImage(editingCampaignForNewForm.id, finalDataToSave as Partial<Campaign>);
 
       try {
         await syncKiosksForCampaign(
@@ -2247,21 +2201,21 @@ const CampaignManagement = ({
 
   const uniqueCategories: string[] = Array.from(
     new Set(
-      (campaigns as any[])
+      campaigns
         .map((c) => (typeof c.category === 'string' ? c.category : ''))
         .filter((v): v is string => Boolean(v)),
     ),
   );
 
   const totalCampaigns = campaigns.length;
-  const activeCampaigns = campaigns.filter((campaign: any) => campaign.status === 'active').length;
+  const activeCampaigns = campaigns.filter((campaign) => campaign.status === 'active').length;
   const totalRaised = campaigns.reduce(
-    (sum: number, campaign: any) => sum + (Number(campaign.raised) || 0),
+    (sum: number, campaign) => sum + (Number(campaign.raised) || 0),
     0,
   );
   const progressValues = campaigns
-    .filter((campaign: any) => campaign.goal && campaign.raised)
-    .map((campaign: any) =>
+    .filter((campaign) => campaign.goal && campaign.raised)
+    .map((campaign) =>
       Math.min((Number(campaign.raised) / 100 / Number(campaign.goal)) * 100, 100),
     );
   const averageProgress =
@@ -2339,7 +2293,7 @@ const CampaignManagement = ({
     dateRange,
   };
 
-  const handleFilterChange = (key: string, value: any) => {
+  const handleFilterChange = (key: string, value: string) => {
     switch (key) {
       case 'statusFilter':
         setStatusFilter(value);
@@ -2354,7 +2308,7 @@ const CampaignManagement = ({
   };
 
   // Client-side search, status, category, and date filters on current page
-  const filteredCampaigns = campaigns.filter((campaign: any) => {
+  const filteredCampaigns = campaigns.filter((campaign) => {
     const matchesSearch =
       !searchTerm ||
       campaign.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -2363,11 +2317,7 @@ const CampaignManagement = ({
         campaign.tags.some((tag: string) => tag.toLowerCase().includes(searchTerm.toLowerCase())));
     const matchesStatus = statusFilter === 'all' || campaign.status === statusFilter;
     const matchesCategory = categoryFilter === 'all' || campaign.category === categoryFilter;
-    const campaignEndDate = campaign.endDate?.seconds
-      ? new Date(campaign.endDate.seconds * 1000)
-      : campaign.endDate
-        ? new Date(campaign.endDate)
-        : null;
+    const campaignEndDate = toDateValue(campaign.endDate);
     const matchesDate = !dateRangeStart || !campaignEndDate || campaignEndDate >= dateRangeStart;
     return matchesSearch && matchesStatus && matchesCategory && matchesDate;
   });
@@ -2576,7 +2526,7 @@ const CampaignManagement = ({
                           : 'space-y-4 md:hidden'
                       }`}
                     >
-                      {filteredAndSortedCampaigns.map((campaign: any) => {
+                      {filteredAndSortedCampaigns.map((campaign) => {
                         const raisedAmount = Number(campaign.raised) || 0;
                         const goalAmount = Number(campaign.goal) || 0;
                         const donationCount = Number(campaign.donationCount) || 0;
@@ -2754,7 +2704,7 @@ const CampaignManagement = ({
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {filteredAndSortedCampaigns.map((campaign: any) => {
+                          {filteredAndSortedCampaigns.map((campaign) => {
                             const raisedAmount = Number(campaign.raised) || 0;
                             const goalAmount = Number(campaign.goal) || 0;
                             const progress =
