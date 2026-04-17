@@ -334,7 +334,12 @@ export function PaymentScreen({
 
                 {/* Payment Form - Always mounted to keep Stripe Elements alive */}
                 <div className="bg-gray-100/50 border border-gray-200/30 rounded-xl p-4 sm:p-5">
-                  <PaymentForm loading={isProcessing} error={error} onSubmit={handleSubmit} />
+                  <PaymentForm
+                    loading={isProcessing}
+                    error={error}
+                    onSubmit={handleSubmit}
+                    accentColorHex={accentColor}
+                  />
                 </div>
               </div>
 

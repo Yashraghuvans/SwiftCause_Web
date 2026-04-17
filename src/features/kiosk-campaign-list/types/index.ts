@@ -79,6 +79,8 @@ export interface CampaignListHeaderProps {
 export interface LoadingStateProps {
   message?: string;
   submessage?: string;
+  accentColorHex?: string;
+  organizationId?: string | null;
 }
 
 // Props for error state

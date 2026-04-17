@@ -85,7 +85,12 @@ export const CampaignListPage: React.FC<CampaignListPageProps> = ({
 
   // Loading state
   if (loading) {
-    return <LoadingState />;
+    return (
+      <LoadingState
+        accentColorHex={organizationBranding?.accentColorHex}
+        organizationId={kioskSession?.organizationId || null}
+      />
+    );
   }
 
   // Error state

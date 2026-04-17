@@ -132,6 +132,9 @@ function ResultContent() {
     if (paymentResult?.campaignTitle) {
       params.set('campaignTitle', paymentResult.campaignTitle);
     }
+    if (organizationId) {
+      params.set('organizationId', organizationId);
+    }
     const query = params.toString();
     router.push(query ? `/email-confirmation?${query}` : '/email-confirmation');
   };

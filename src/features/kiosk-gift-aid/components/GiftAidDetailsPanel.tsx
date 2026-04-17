@@ -14,6 +14,7 @@ interface GiftAidDetailsPanelProps {
   initialDonorEmail?: string;
   collectDonorEmail?: boolean;
   enableAutoLookup?: boolean;
+  accentColorHex?: string;
   onSubmit: (details: GiftAidDetails) => void;
   onBack: () => void;
 }
@@ -27,8 +28,13 @@ export const GiftAidDetailsPanel: React.FC<GiftAidDetailsPanelProps> = ({
   initialDonorEmail = '',
   collectDonorEmail = true,
   enableAutoLookup = true,
+  accentColorHex,
   onSubmit,
 }) => {
+  const accentColor =
+    typeof accentColorHex === 'string' && /^#[0-9A-Fa-f]{6}$/.test(accentColorHex.trim())
+      ? accentColorHex.trim().toUpperCase()
+      : '#0E8F5A';
   const [donorTitle, setDonorTitle] = useState('');
   const [fullName, setFullName] = useState(initialFullName);
   const [donorEmail, setDonorEmail] = useState(initialDonorEmail);
@@ -208,7 +214,10 @@ export const GiftAidDetailsPanel: React.FC<GiftAidDetailsPanelProps> = ({
   return (
     <div className="bg-[#FFFCF9] rounded-[22px] border border-[rgba(15,23,42,0.07)] shadow-[0_18px_42px_rgba(15,23,42,0.10)] overflow-hidden flex flex-col w-full max-w-xl md:max-w-[42rem] lg:max-w-[42rem] mx-auto font-lexend max-h-full">
       {/* Header */}
-      <div className="bg-[#0E8F5A] text-white px-4 sm:px-6 py-3.5 sm:py-4 text-center relative sticky top-0 z-10">
+      <div
+        className="text-white px-4 sm:px-6 py-3.5 sm:py-4 text-center relative sticky top-0 z-10"
+        style={{ backgroundColor: accentColor }}
+      >
         <p className="text-[10px] sm:text-[11px] uppercase tracking-[0.2em] text-white/90 mb-1">
           Your impact
         </p>
@@ -233,7 +242,10 @@ export const GiftAidDetailsPanel: React.FC<GiftAidDetailsPanelProps> = ({
           `}</style>
           {/* Campaign Info */}
           <div className="mb-3 p-3 bg-[#EEF7F2] border border-[#BFE2CF] rounded-[18px] text-center">
-            <p className="text-[10px] text-[#0E8F5A] font-medium tracking-[0.16em] uppercase">
+            <p
+              className="text-[10px] font-medium tracking-[0.16em] uppercase"
+              style={{ color: accentColor }}
+            >
               Donating to
             </p>
             <p className="font-medium text-slate-900 mt-1 tracking-[-0.01em] text-[14px] sm:text-[15px] leading-[1.3]">
@@ -242,13 +254,19 @@ export const GiftAidDetailsPanel: React.FC<GiftAidDetailsPanelProps> = ({
           </div>
 
           {prefillLoading && (
-            <div className="mb-3 p-3 bg-[#EEF7F2] border border-[#BFE2CF] rounded-[14px] text-[#0E8F5A] text-[12px] sm:text-[13px]">
+            <div
+              className="mb-3 p-3 bg-[#EEF7F2] border border-[#BFE2CF] rounded-[14px] text-[12px] sm:text-[13px]"
+              style={{ color: accentColor }}
+            >
               Checking for your saved Gift Aid details...
             </div>
           )}
 
           {usingSavedConsent && !prefillLoading && (
-            <div className="mb-3 p-3 bg-[#EEF7F2] border border-[#BFE2CF] rounded-[14px] text-[#0E8F5A] text-[12px] sm:text-[13px]">
+            <div
+              className="mb-3 p-3 bg-[#EEF7F2] border border-[#BFE2CF] rounded-[14px] text-[12px] sm:text-[13px]"
+              style={{ color: accentColor }}
+            >
               Using your saved Gift Aid details and future-consent
               {savedConsentDate
                 ? ` from ${new Date(savedConsentDate).toLocaleDateString('en-GB')}`
@@ -261,7 +279,7 @@ export const GiftAidDetailsPanel: React.FC<GiftAidDetailsPanelProps> = ({
             {/* Section 1: Donor details */}
             <div className="space-y-2">
               <div className="flex items-center gap-3 pb-1">
-                <User className="w-4 h-4 text-[#0E8F5A]" />
+                <User className="w-4 h-4" style={{ color: accentColor }} />
                 <h3 className="text-[16px] sm:text-[17px] font-semibold text-slate-900 tracking-[-0.01em]">
                   Donor details
                 </h3>
@@ -492,7 +510,7 @@ export const GiftAidDetailsPanel: React.FC<GiftAidDetailsPanelProps> = ({
             {/* Section 2: Gift Aid declaration */}
             <div className="space-y-2">
               <div className="flex items-center gap-3 pb-1">
-                <CheckCircle className="w-4 h-4 text-[#0E8F5A]" />
+                <CheckCircle className="w-4 h-4" style={{ color: accentColor }} />
                 <h3 className="text-[16px] sm:text-[17px] font-semibold text-slate-900 tracking-[-0.01em]">
                   Gift Aid declaration
                 </h3>
@@ -517,10 +535,13 @@ export const GiftAidDetailsPanel: React.FC<GiftAidDetailsPanelProps> = ({
               >
                 <div
                   className={`w-5 h-5 rounded-full border-2 shrink-0 flex items-center justify-center transition-all mt-0.5 ${
-                    declarationAccepted || usingSavedConsent
-                      ? 'bg-[#0E8F5A] border-[#0E8F5A]'
-                      : 'bg-white border-gray-300'
+                    declarationAccepted || usingSavedConsent ? '' : 'bg-white border-gray-300'
                   }`}
+                  style={
+                    declarationAccepted || usingSavedConsent
+                      ? { backgroundColor: accentColor, borderColor: accentColor }
+                      : undefined
+                  }
                 >
                   {(declarationAccepted || usingSavedConsent) && (
                     <Check className="w-3 h-3 text-white" strokeWidth={3} />
@@ -543,6 +564,7 @@ export const GiftAidDetailsPanel: React.FC<GiftAidDetailsPanelProps> = ({
             type="submit"
             disabled={submitting || (!declarationAccepted && !usingSavedConsent)}
             className="w-full h-11 sm:h-12 rounded-[16px] font-semibold text-[15px] sm:text-[16px] text-white transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center bg-[#0E8F5A] hover:brightness-[1.02] active:brightness-[0.98] shadow-[0_10px_24px_rgba(14,143,90,0.28)] tracking-[0.005em]"
+            style={{ backgroundColor: accentColor }}
           >
             {submitting ? 'Processing...' : 'Continue to Payment'}
             {!submitting && <ArrowRight className="w-4 h-4 ml-2" />}
