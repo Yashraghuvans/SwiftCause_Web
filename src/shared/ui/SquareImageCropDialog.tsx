@@ -19,6 +19,7 @@ const MIN_ZOOM = 1;
 const MAX_ZOOM = 3;
 const DEFAULT_ZOOM = 1;
 const DEFAULT_OFFSET = { x: 0, y: 0 };
+const WHEEL_ZOOM_SENSITIVITY = 0.0012;
 
 const clamp = (value: number, min: number, max: number): number => {
   return Math.min(Math.max(value, min), max);
@@ -60,6 +61,8 @@ export function SquareImageCropDialog({
     height: number;
   } | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const wheelDeltaRef = useRef(0);
+  const wheelRafRef = useRef<number | null>(null);
   const dragStateRef = useRef<{
     pointerId: number;
     startX: number;
@@ -82,6 +85,14 @@ export function SquareImageCropDialog({
       }
     };
   }, [objectUrl]);
+
+  useEffect(() => {
+    return () => {
+      if (wheelRafRef.current !== null) {
+        cancelAnimationFrame(wheelRafRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (!open || !objectUrl) {
@@ -236,9 +247,18 @@ export function SquareImageCropDialog({
 
   const handleWheelZoom = (event: React.WheelEvent<HTMLDivElement>) => {
     event.preventDefault();
-    const speed = 0.0015;
-    const delta = -event.deltaY * speed;
-    setZoomUniform((previous) => previous + delta);
+    wheelDeltaRef.current += -event.deltaY * WHEEL_ZOOM_SENSITIVITY;
+
+    if (wheelRafRef.current !== null) {
+      return;
+    }
+
+    wheelRafRef.current = requestAnimationFrame(() => {
+      const delta = wheelDeltaRef.current;
+      wheelDeltaRef.current = 0;
+      wheelRafRef.current = null;
+      setZoomUniform((previous) => previous + delta);
+    });
   };
 
   const handleResetPosition = () => {
@@ -342,6 +362,8 @@ export function SquareImageCropDialog({
                     top: '50%',
                     transform: `translate(calc(-50% + ${offset.x}px), calc(-50% + ${offset.y}px)) scale(${zoom})`,
                     transformOrigin: 'center center',
+                    transition: isDragging ? 'none' : 'transform 120ms ease-out',
+                    willChange: 'transform',
                   }}
                 />
               ) : null}
