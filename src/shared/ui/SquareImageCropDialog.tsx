@@ -137,10 +137,53 @@ export function SquareImageCropDialog({
     return Math.max(frameWidth / imageNaturalSize.width, frameHeight / imageNaturalSize.height);
   }, [frameHeight, frameWidth, imageNaturalSize]);
 
-  const displayWidth = (imageNaturalSize?.width ?? frameWidth) * baseScale * zoom;
-  const displayHeight = (imageNaturalSize?.height ?? frameHeight) * baseScale * zoom;
-  const maxOffsetX = Math.max(0, (displayWidth - frameWidth) / 2);
-  const maxOffsetY = Math.max(0, (displayHeight - frameHeight) / 2);
+  const baseDisplayWidth = (imageNaturalSize?.width ?? frameWidth) * baseScale;
+  const baseDisplayHeight = (imageNaturalSize?.height ?? frameHeight) * baseScale;
+  const zoomedDisplayWidth = baseDisplayWidth * zoom;
+  const zoomedDisplayHeight = baseDisplayHeight * zoom;
+  const maxOffsetX = Math.max(0, (zoomedDisplayWidth - frameWidth) / 2);
+  const maxOffsetY = Math.max(0, (zoomedDisplayHeight - frameHeight) / 2);
+
+  const getMaxOffsetsForZoom = (zoomLevel: number) => {
+    const widthAtZoom = baseDisplayWidth * zoomLevel;
+    const heightAtZoom = baseDisplayHeight * zoomLevel;
+    return {
+      maxX: Math.max(0, (widthAtZoom - frameWidth) / 2),
+      maxY: Math.max(0, (heightAtZoom - frameHeight) / 2),
+    };
+  };
+
+  const clampOffsetForZoom = (nextOffset: { x: number; y: number }, zoomLevel: number) => {
+    const { maxX, maxY } = getMaxOffsetsForZoom(zoomLevel);
+    return {
+      x: clamp(nextOffset.x, -maxX, maxX),
+      y: clamp(nextOffset.y, -maxY, maxY),
+    };
+  };
+
+  const setZoomUniform = (nextZoomOrUpdater: number | ((previous: number) => number)) => {
+    setZoom((previousZoom) => {
+      const requestedZoom =
+        typeof nextZoomOrUpdater === 'function'
+          ? nextZoomOrUpdater(previousZoom)
+          : nextZoomOrUpdater;
+      const nextZoom = clamp(requestedZoom, MIN_ZOOM, MAX_ZOOM);
+      if (nextZoom === previousZoom) {
+        return previousZoom;
+      }
+
+      const zoomRatio = nextZoom / previousZoom;
+      setOffset((previousOffset) => {
+        const scaledOffset = {
+          x: previousOffset.x * zoomRatio,
+          y: previousOffset.y * zoomRatio,
+        };
+        return clampOffsetForZoom(scaledOffset, nextZoom);
+      });
+
+      return nextZoom;
+    });
+  };
 
   useEffect(() => {
     setOffset((previous) => ({
@@ -195,7 +238,7 @@ export function SquareImageCropDialog({
     event.preventDefault();
     const speed = 0.0015;
     const delta = -event.deltaY * speed;
-    setZoom((previous) => clamp(previous + delta, MIN_ZOOM, MAX_ZOOM));
+    setZoomUniform((previous) => previous + delta);
   };
 
   const handleResetPosition = () => {
@@ -211,10 +254,10 @@ export function SquareImageCropDialog({
     setIsSaving(true);
     try {
       const sourceImage = await loadImageElement(objectUrl);
-      const sourceRatioX = sourceImage.naturalWidth / displayWidth;
-      const sourceRatioY = sourceImage.naturalHeight / displayHeight;
-      const sourceCropX = (displayWidth / 2 - frameWidth / 2 - offset.x) * sourceRatioX;
-      const sourceCropY = (displayHeight / 2 - frameHeight / 2 - offset.y) * sourceRatioY;
+      const sourceRatioX = sourceImage.naturalWidth / zoomedDisplayWidth;
+      const sourceRatioY = sourceImage.naturalHeight / zoomedDisplayHeight;
+      const sourceCropX = (zoomedDisplayWidth / 2 - frameWidth / 2 - offset.x) * sourceRatioX;
+      const sourceCropY = (zoomedDisplayHeight / 2 - frameHeight / 2 - offset.y) * sourceRatioY;
       const sourceCropWidth = frameWidth * sourceRatioX;
       const sourceCropHeight = frameHeight * sourceRatioY;
       const largestSourceCropEdge = Math.max(sourceCropWidth, sourceCropHeight);
@@ -293,11 +336,12 @@ export function SquareImageCropDialog({
                   draggable={false}
                   className="pointer-events-none absolute select-none"
                   style={{
-                    width: `${displayWidth}px`,
-                    height: `${displayHeight}px`,
+                    width: `${baseDisplayWidth}px`,
+                    height: `${baseDisplayHeight}px`,
                     left: '50%',
                     top: '50%',
-                    transform: `translate(calc(-50% + ${offset.x}px), calc(-50% + ${offset.y}px))`,
+                    transform: `translate(calc(-50% + ${offset.x}px), calc(-50% + ${offset.y}px)) scale(${zoom})`,
+                    transformOrigin: 'center center',
                   }}
                 />
               ) : null}
@@ -352,7 +396,7 @@ export function SquareImageCropDialog({
               type="button"
               variant="outline"
               size="icon"
-              onClick={() => setZoom((previous) => clamp(previous - 0.1, MIN_ZOOM, MAX_ZOOM))}
+              onClick={() => setZoomUniform((previous) => previous - 0.1)}
               disabled={zoom <= MIN_ZOOM}
             >
               <Minus className="h-4 w-4" />
@@ -362,15 +406,13 @@ export function SquareImageCropDialog({
               min={MIN_ZOOM}
               max={MAX_ZOOM}
               step={0.01}
-              onValueChange={(value) =>
-                setZoom(clamp(value[0] ?? DEFAULT_ZOOM, MIN_ZOOM, MAX_ZOOM))
-              }
+              onValueChange={(value) => setZoomUniform(value[0] ?? DEFAULT_ZOOM)}
             />
             <Button
               type="button"
               variant="outline"
               size="icon"
-              onClick={() => setZoom((previous) => clamp(previous + 0.1, MIN_ZOOM, MAX_ZOOM))}
+              onClick={() => setZoomUniform((previous) => previous + 0.1)}
               disabled={zoom >= MAX_ZOOM}
             >
               <Plus className="h-4 w-4" />
