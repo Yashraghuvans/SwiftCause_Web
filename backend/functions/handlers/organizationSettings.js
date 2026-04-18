@@ -232,31 +232,85 @@ const validateAndNormalizeSettingsPayload = (body) => {
   };
 };
 
-const extractStoragePathFromUrl = (url) => {
+const STORAGE_HOST_WHITELIST = new Set([
+  'firebasestorage.googleapis.com',
+  'storage.googleapis.com',
+]);
+
+const getAllowedStorageBuckets = () => {
+  const configuredBucket = admin.app()?.options?.storageBucket;
+  const envBucket = process.env.FIREBASE_STORAGE_BUCKET;
+  const projectId = process.env.GCLOUD_PROJECT || process.env.GCP_PROJECT || '';
+  const projectDerivedBuckets = projectId
+    ? [`${projectId}.appspot.com`, `${projectId}.firebasestorage.app`]
+    : [];
+
+  return new Set([configuredBucket, envBucket, ...projectDerivedBuckets].filter(Boolean));
+};
+
+const extractStorageReferenceFromUrl = (url) => {
   if (!url) {
     return null;
   }
 
   try {
     if (url.startsWith('gs://')) {
-      const withoutPrefix = url.replace(/^gs:\/\/[^/]+\//, '');
-      return withoutPrefix || null;
+      const withoutPrefix = url.replace(/^gs:\/\//, '');
+      const firstSlashIndex = withoutPrefix.indexOf('/');
+      if (firstSlashIndex === -1) {
+        return null;
+      }
+
+      const bucket = withoutPrefix.slice(0, firstSlashIndex);
+      const path = withoutPrefix.slice(firstSlashIndex + 1);
+      if (!bucket || !path) {
+        return null;
+      }
+
+      return { bucket, path };
     }
 
     const parsedUrl = new URL(url);
-    const objectPathParam = parsedUrl.searchParams.get('name');
-    if (objectPathParam) {
-      return decodeURIComponent(objectPathParam);
-    }
-
-    const marker = '/o/';
-    const markerIndex = parsedUrl.pathname.indexOf(marker);
-    if (markerIndex === -1) {
+    if (!STORAGE_HOST_WHITELIST.has(parsedUrl.hostname)) {
       return null;
     }
 
-    const encodedPath = parsedUrl.pathname.slice(markerIndex + marker.length);
-    return encodedPath ? decodeURIComponent(encodedPath) : null;
+    // Firebase download URL shape: /v0/b/<bucket>/o/<encodedPath>
+    const firebaseBucketMatch = parsedUrl.pathname.match(/^\/v0\/b\/([^/]+)\/o\/?/);
+    const queryPath = parsedUrl.searchParams.get('name');
+    if (firebaseBucketMatch && queryPath) {
+      return {
+        bucket: firebaseBucketMatch[1],
+        path: decodeURIComponent(queryPath),
+      };
+    }
+
+    if (firebaseBucketMatch) {
+      const marker = '/o/';
+      const markerIndex = parsedUrl.pathname.indexOf(marker);
+      const encodedPath =
+        markerIndex >= 0 ? parsedUrl.pathname.slice(markerIndex + marker.length) : '';
+      if (encodedPath) {
+        return {
+          bucket: firebaseBucketMatch[1],
+          path: decodeURIComponent(encodedPath),
+        };
+      }
+    }
+
+    // GCS URL shape: https://storage.googleapis.com/<bucket>/<path>
+    if (parsedUrl.hostname === 'storage.googleapis.com') {
+      const parts = parsedUrl.pathname.replace(/^\/+/, '').split('/');
+      if (parts.length >= 2) {
+        const [bucket, ...objectParts] = parts;
+        const path = decodeURIComponent(objectParts.join('/'));
+        if (bucket && path) {
+          return { bucket, path };
+        }
+      }
+    }
+
+    return null;
   } catch {
     return null;
   }
@@ -267,10 +321,12 @@ const assertAssetBelongsToOrganization = (url, organizationId, pathRegex, fieldN
     return;
   }
 
-  const storagePath = extractStoragePathFromUrl(url);
-  const match = storagePath ? storagePath.match(pathRegex) : null;
+  const storageRef = extractStorageReferenceFromUrl(url);
+  const match = storageRef?.path ? storageRef.path.match(pathRegex) : null;
+  const allowedBuckets = getAllowedStorageBuckets();
+  const isAllowedBucket = storageRef?.bucket && allowedBuckets.has(storageRef.bucket);
 
-  if (!match || match[1] !== organizationId) {
+  if (!match || match[1] !== organizationId || !isAllowedBucket) {
     const error = new Error(`${fieldName} must reference an uploaded asset for this organization`);
     error.code = 400;
     throw error;
