@@ -15,6 +15,7 @@
     "prepare": "husky",
     "test": "vitest",
     "test:run": "vitest run --coverage",
+    "test:coverage": "vitest run --coverage",
     "test:watch": "vitest",
     "emulator": "cd backend && firebase emulators:start",
     "deploy:functions": "cd backend && firebase deploy --only functions",
