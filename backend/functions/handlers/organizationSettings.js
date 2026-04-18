@@ -29,15 +29,9 @@ const hasAnyOrgSettingsWriteAccess = (callerData) => {
 };
 
 const hasOrgSettingsWriteAccessForPermission = (callerData, permission) => {
-  const role = typeof callerData?.role === 'string' ? callerData.role : '';
   const permissions = Array.isArray(callerData?.permissions) ? callerData.permissions : [];
 
-  return (
-    role === 'admin' ||
-    role === 'super_admin' ||
-    permissions.includes(permission) ||
-    permissions.includes('system_admin')
-  );
+  return permissions.includes(permission) || permissions.includes('system_admin');
 };
 
 const normalizeOptionalString = (value) => {
