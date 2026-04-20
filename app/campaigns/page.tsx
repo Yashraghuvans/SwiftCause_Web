@@ -22,6 +22,7 @@ export default function CampaignsPage() {
         const donation = {
           campaignId: campaign.id,
           amount: amountPence,
+          organizationId: campaign.organizationId,
           isGiftAid: false,
           giftAidAccepted: false, // Explicitly set to false when disabled
           isRecurring: false,
